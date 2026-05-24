@@ -20,7 +20,6 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.config import get_settings
 from app.core.beads_poller import get_beads_poller, has_beads, init_beads_poller
-from app.core.building_orchestrator import BuildingOrchestrator
 from app.core.broadcast_service import (
     broadcast_building_state,
     broadcast_error,
@@ -28,6 +27,7 @@ from app.core.broadcast_service import (
     broadcast_room_state,
     broadcast_state,
 )
+from app.core.building_orchestrator import BuildingOrchestrator
 from app.core.floor_config import get_cached_building_config
 from app.core.handlers import (
     enrich_agent_from_transcript,
@@ -278,9 +278,7 @@ class EventProcessor:
     def build_building_snapshot(self) -> BuildingState:
         """Build the current compact BuildingState from in-memory sessions."""
         config = get_cached_building_config()
-        return self.building_orchestrator.build_state(
-            self.sessions, config, self._display_names
-        )
+        return self.building_orchestrator.build_state(self.sessions, config, self._display_names)
 
     async def get_project_root(self, session_id: str) -> str | None:
         """Get the cached project_root for a session from the database.
@@ -378,9 +376,7 @@ class EventProcessor:
             )
             if display:
                 self._display_names[event.session_id] = display
-        self.building_orchestrator.record_activity(
-            resolved_floor_id, event.timestamp.isoformat()
-        )
+        self.building_orchestrator.record_activity(resolved_floor_id, event.timestamp.isoformat())
 
         if event.session_id not in self.sessions:
             await self._restore_session(event.session_id)
