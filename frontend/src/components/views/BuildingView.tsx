@@ -7,66 +7,7 @@ import { useBuildingStore } from "@/stores/buildingStore";
 import { LOBBY_FLOOR_ID } from "@/types/navigation";
 import type { FloorConfig } from "@/types/navigation";
 import type { Session } from "@/hooks/useSessions";
-
-// ============================================================================
-// FLOOR ROW
-// ============================================================================
-
-interface FloorRowProps {
-  floor: FloorConfig;
-  activeSessionCount: number;
-  onClick: (origin: { x: number; y: number }) => void;
-}
-
-function FloorRow({
-  floor,
-  activeSessionCount,
-  onClick,
-}: FloorRowProps): React.ReactNode {
-  const roomCount = floor.rooms.length;
-
-  return (
-    <button
-      onClick={(e) => onClick({ x: e.clientX, y: e.clientY })}
-      data-tour-id={`floor-${floor.id}`}
-      data-floor-id={floor.id}
-      className="group flex items-stretch w-full rounded-lg border border-slate-700 bg-slate-900 hover:border-slate-500 hover:bg-slate-800 transition-all duration-200"
-    >
-      {/* Floor number badge */}
-      <div
-        className="flex items-center justify-center w-16 rounded-l-lg text-2xl font-bold font-mono"
-        style={{ backgroundColor: floor.accent + "20", color: floor.accent }}
-      >
-        {floor.floorNumber}F
-      </div>
-
-      {/* Floor info */}
-      <div className="flex-grow flex items-center gap-4 px-5 py-4">
-        <span className="text-2xl">{floor.icon}</span>
-        <div className="flex flex-col items-start">
-          <span className="text-lg font-bold" style={{ color: floor.accent }}>
-            {floor.name}
-          </span>
-          <span className="text-xs text-slate-500 font-mono">
-            {roomCount} room{roomCount !== 1 ? "s" : ""}
-            {activeSessionCount > 0 && (
-              <>
-                {" "}
-                &middot; {activeSessionCount} session
-                {activeSessionCount !== 1 ? "s" : ""}
-              </>
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* Arrow */}
-      <div className="flex items-center px-4 text-slate-600 group-hover:text-slate-400 transition-colors">
-        &rarr;
-      </div>
-    </button>
-  );
-}
+import { FloorRowLive } from "./building/FloorRowLive";
 
 // ============================================================================
 // MATCHING HELPERS
@@ -157,15 +98,11 @@ export function BuildingView({ sessions }: BuildingViewProps): React.ReactNode {
         {/* Floors sorted top-down by floor number (highest first) */}
         {sortedFloors.map((floor) => {
           const liveFloor = live?.floors?.find((f) => f.floorId === floor.id);
-          const activeSessionCount =
-            liveFloor?.sessions?.length ??
-            sessions.filter((s) => sessionMatchesFloor(s, floor) && s.status === "active")
-              .length;
           return (
-            <FloorRow
+            <FloorRowLive
               key={floor.id}
               floor={floor}
-              activeSessionCount={activeSessionCount}
+              live={liveFloor}
               onClick={(origin) => {
                 useNavigationStore.getState().setTransitionOrigin(origin);
                 goToFloor(floor.id);
