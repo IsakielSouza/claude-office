@@ -263,6 +263,7 @@ const ptBR: Record<TranslationKey, string> = {
   "hitl.submit": "Responder",
   "hitl.textPlaceholder": "Digite sua resposta…",
   "hitl.noIssueSection": "Outros prompts aguardando",
+  "hitl.filterWaiting": "Aguardando resposta",
 };
 
 export default ptBR;

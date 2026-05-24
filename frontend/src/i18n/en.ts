@@ -261,6 +261,7 @@ const en = {
   "hitl.submit": "Respond",
   "hitl.textPlaceholder": "Type your answer…",
   "hitl.noIssueSection": "Other awaiting prompts",
+  "hitl.filterWaiting": "Awaiting response",
 } as const;
 
 export type TranslationKey = keyof typeof en;

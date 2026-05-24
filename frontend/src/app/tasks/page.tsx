@@ -34,6 +34,7 @@ export default function TasksPage(): React.ReactNode {
   const [state, setState] = useState("");
   const [project, setProject] = useState("");
   const [selectedPrompt, setSelectedPrompt] = useState<HitlPrompt | null>(null);
+  const [onlyWaiting, setOnlyWaiting] = useState(false);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -74,6 +75,15 @@ export default function TasksPage(): React.ReactNode {
     );
   }, [hitlData, data]);
   const pendingCount = hitlData?.prompts.length ?? 0;
+
+  // Filtro "aguardando resposta": só tasks com prompt HITL pendente.
+  // (prompts sem task casada continuam na seção orphanPrompts abaixo.)
+  const displayedTasks = useMemo(() => {
+    const tasks = data?.tasks ?? [];
+    return onlyWaiting
+      ? tasks.filter((t) => promptsBySourceRef.has(t.source_ref))
+      : tasks;
+  }, [onlyWaiting, data, promptsBySourceRef]);
 
   const handleAnswer = async (id: number, answer: HitlAnswerValue) => {
     await answerHitl(id, answer);
@@ -121,13 +131,31 @@ export default function TasksPage(): React.ReactNode {
           className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm w-56"
         />
         <button
+          onClick={() => setOnlyWaiting((v) => !v)}
+          aria-pressed={onlyWaiting}
+          className={`flex items-center gap-1 px-3 py-1 rounded text-sm font-bold border transition-colors ${
+            onlyWaiting
+              ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+              : "bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200"
+          }`}
+        >
+          <Lock size={14} /> {tr("hitl.filterWaiting")}
+          {pendingCount > 0 && (
+            <span className="ml-1 px-1.5 rounded-full bg-amber-500/30 text-amber-200 text-xs">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => void refetch()}
           className="flex items-center gap-1 px-3 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded text-sm font-bold transition-colors"
         >
           <RefreshCw size={14} /> Atualizar
         </button>
         {data && (
-          <span className="text-xs text-slate-500">{data.tasks.length} tasks</span>
+          <span className="text-xs text-slate-500">
+            {displayedTasks.length} tasks
+          </span>
         )}
       </div>
 
@@ -161,7 +189,7 @@ export default function TasksPage(): React.ReactNode {
               </tr>
             </thead>
             <tbody>
-              {data.tasks.map((t) => (
+              {displayedTasks.map((t) => (
                 <tr
                   key={t.source_ref}
                   className="border-t border-slate-900 hover:bg-slate-900/40"
@@ -225,10 +253,12 @@ export default function TasksPage(): React.ReactNode {
                   </td>
                 </tr>
               ))}
-              {data.tasks.length === 0 && (
+              {displayedTasks.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-3 py-6 text-center text-slate-600">
-                    Nenhuma task encontrada.
+                    {onlyWaiting
+                      ? "Nenhuma task aguardando sua resposta."
+                      : "Nenhuma task encontrada."}
                   </td>
                 </tr>
               )}

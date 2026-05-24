@@ -263,6 +263,7 @@ const es: Record<TranslationKey, string> = {
   "hitl.submit": "Responder",
   "hitl.textPlaceholder": "Escribe tu respuesta…",
   "hitl.noIssueSection": "Otros prompts en espera",
+  "hitl.filterWaiting": "Esperando respuesta",
 };
 
 export default es;
