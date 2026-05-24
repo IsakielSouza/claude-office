@@ -7,7 +7,7 @@ import {
   PlayCircle,
   Play,
   RefreshCw,
-  Trash2,
+  ListTodo,
   X,
   ChevronDown,
   ChevronRight,
@@ -69,7 +69,7 @@ interface MobileDrawerProps {
   onSessionSelect: (id: string) => Promise<void>;
   onSimulate: () => Promise<void>;
   onReset: () => void;
-  onClearDB: () => void;
+  onTasks: () => void;
 }
 
 // ============================================================================
@@ -90,7 +90,7 @@ export function MobileDrawer({
   onSessionSelect,
   onSimulate,
   onReset,
-  onClearDB,
+  onTasks,
 }: MobileDrawerProps): React.ReactNode {
   const { t, language } = useTranslation();
   const dateFnsLocale =
@@ -123,8 +123,8 @@ export function MobileDrawer({
     onClose();
   };
 
-  const handleClearDB = (): void => {
-    onClearDB();
+  const handleTasks = (): void => {
+    onTasks();
     onClose();
   };
 
@@ -169,11 +169,11 @@ export function MobileDrawer({
               {t("header.reset")}
             </button>
             <button
-              onClick={handleClearDB}
-              className="flex items-center gap-2 px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded text-sm font-bold transition-colors"
+              onClick={handleTasks}
+              className="flex items-center gap-2 px-3 py-2 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded text-sm font-bold transition-colors"
             >
-              <Trash2 size={16} />
-              {t("header.clearDb")}
+              <ListTodo size={16} />
+              {t("header.tasks")}
             </button>
           </div>
 

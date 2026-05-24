@@ -5,7 +5,7 @@ import {
   Play,
   RefreshCw,
   Bug,
-  Trash2,
+  ListTodo,
   HelpCircle,
   Settings,
   Map,
@@ -26,7 +26,7 @@ interface HeaderControlsProps {
   aiSummaryEnabled: boolean | null;
   onSimulate: () => Promise<void>;
   onReset: () => void;
-  onClearDB: () => void;
+  onTasks: () => void;
   onToggleDebug: () => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
@@ -37,7 +37,7 @@ interface HeaderControlsProps {
 // ============================================================================
 
 /**
- * Desktop-only header controls: action buttons (Simulate, Reset, Clear DB,
+ * Desktop-only header controls: action buttons (Simulate, Reset, Tasks,
  * Debug, Settings, Help) and the connection/AI status display.
  *
  * Hidden on mobile — the MobileDrawer handles those actions instead.
@@ -48,7 +48,7 @@ export function HeaderControls({
   aiSummaryEnabled,
   onSimulate,
   onReset,
-  onClearDB,
+  onTasks,
   onToggleDebug,
   onOpenSettings,
   onOpenHelp,
@@ -83,11 +83,11 @@ export function HeaderControls({
       </button>
 
       <button
-        onClick={onClearDB}
-        className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded text-xs font-bold transition-colors"
+        onClick={onTasks}
+        className="flex items-center gap-2 px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded text-xs font-bold transition-colors"
       >
-        <Trash2 size={14} />
-        {t("header.clearDb")}
+        <ListTodo size={14} />
+        {t("header.tasks")}
       </button>
 
       <button

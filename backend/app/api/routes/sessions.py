@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.websocket import manager
 from app.core.event_processor import event_processor
 from app.db.database import get_db
-from app.db.models import EventRecord, SessionRecord, TaskRecord, UserPreference
+from app.db.models import EventRecord, SessionRecord, TaskRecord
 from app.services.git_service import git_service
 
 logger = logging.getLogger(__name__)
@@ -484,39 +484,6 @@ async def trigger_simulation() -> dict[str, str]:
     except Exception as e:
         logger.exception("Error in trigger_simulation: %s", e)
         raise HTTPException(status_code=500, detail="Failed to start simulation") from e
-
-
-@router.delete("")
-async def clear_database(db: Annotated[AsyncSession, Depends(get_db)]) -> dict[str, str]:
-    """Clear all sessions and events from the database."""
-    try:
-        simulation_killed = kill_simulation()
-
-        # Preserve building/floor configuration while clearing everything else.
-        await db.execute(delete(UserPreference).where(UserPreference.key != "building_config"))
-        await db.execute(delete(TaskRecord))
-        await db.execute(delete(EventRecord))
-        await db.execute(delete(SessionRecord))
-        await db.commit()
-
-        # Re-invalidate cached building config in case other preferences changed.
-        from app.core.floor_config import invalidate_building_config
-
-        invalidate_building_config()
-
-        await event_processor.clear_all_sessions()
-        git_service.clear()
-
-        await manager.broadcast_all({"type": "reload", "timestamp": ""})
-
-        message = "Database and memory cleared"
-        if simulation_killed:
-            message += " (simulation stopped)"
-        return {"status": "success", "message": message}
-    except Exception as e:
-        await db.rollback()
-        logger.exception("Error in clear_database: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to clear database") from e
 
 
 @router.delete("/{session_id}")

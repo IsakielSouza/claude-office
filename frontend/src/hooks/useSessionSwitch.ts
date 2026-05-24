@@ -19,7 +19,6 @@ interface UseSessionSwitchOptions {
 interface UseSessionSwitchResult {
   handleSessionSelect: (id: string) => Promise<void>;
   handleDeleteSession: (session: Session) => Promise<void>;
-  handleClearDB: () => Promise<void>;
   handleSimulate: () => Promise<void>;
   handleReset: () => void;
   handleRenameSession: (sessionId: string, newName: string) => Promise<void>;
@@ -30,7 +29,7 @@ interface UseSessionSwitchResult {
 // ============================================================================
 
 /**
- * Provides action handlers for session switching, deletion, database clearing,
+ * Provides action handlers for session switching, deletion,
  * simulation triggering, and store resetting. All side-effects are isolated
  * here so page.tsx stays declarative.
  */
@@ -80,27 +79,6 @@ export function useSessionSwitch({
         showStatus(t("status.sessionDeleted"), "success");
       } else {
         showStatus(t("status.failedDeleteSession"), "error");
-      }
-    } catch (e) {
-      console.error(e);
-      showStatus(t("status.errorConnecting"), "error");
-    }
-  };
-
-  const handleClearDB = async (): Promise<void> => {
-    try {
-      showStatus(t("status.clearingDatabase"), "info");
-      const res = await fetch("http://localhost:8000/api/v1/sessions", {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        agentMachineService.reset();
-        useGameStore.getState().resetForSessionSwitch();
-        setSessionId("sim_session_123");
-        await fetchSessions();
-        showStatus(t("status.databaseCleared"), "success");
-      } else {
-        showStatus(t("status.failedClearDatabase"), "error");
       }
     } catch (e) {
       console.error(e);
@@ -163,7 +141,6 @@ export function useSessionSwitch({
   return {
     handleSessionSelect,
     handleDeleteSession,
-    handleClearDB,
     handleSimulate,
     handleReset,
     handleRenameSession,

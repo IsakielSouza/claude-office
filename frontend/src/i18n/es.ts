@@ -8,7 +8,7 @@ const es: Record<TranslationKey, string> = {
   // Header Controls
   "header.simulate": "SIMULAR",
   "header.reset": "REINICIAR",
-  "header.clearDb": "LIMPIAR BD",
+  "header.tasks": "TASKS",
   "header.debugOn": "DEPURAR ON",
   "header.debugOff": "DEPURAR OFF",
   "header.settings": "AJUSTES",
@@ -22,11 +22,7 @@ const es: Record<TranslationKey, string> = {
   "header.tour": "TOUR",
 
   // Modals
-  "modal.confirmDbWipe": "Confirmar borrado de base de datos",
   "modal.cancel": "Cancelar",
-  "modal.wipeAllData": "Borrar todos los datos",
-  "modal.wipeWarning":
-    "¿Está seguro de que desea eliminar permanentemente todo el historial de sesiones y eventos? Esta acción no se puede deshacer y restablecerá el estado actual del visualizador.",
   "modal.keyboardShortcuts": "Atajos de teclado",
   "modal.close": "Cerrar",
   "modal.toggleDebug": "Alternar modo de depuración",
@@ -183,9 +179,6 @@ const es: Record<TranslationKey, string> = {
   "status.errorConnecting": "Error al conectar con el backend.",
   "status.sessionRenamed": "Sesión renombrada.",
   "status.failedRenameSession": "Error al renombrar la sesión.",
-  "status.clearingDatabase": "Limpiando base de datos...",
-  "status.databaseCleared": "Base de datos limpia.",
-  "status.failedClearDatabase": "Error al limpiar base de datos.",
   "status.triggeringSimulation": "Iniciando simulación...",
   "status.simulationStarted": "¡Simulación iniciada!",
   "status.failedSimulation": "Error al iniciar simulación.",

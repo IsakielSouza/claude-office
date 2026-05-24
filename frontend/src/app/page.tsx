@@ -14,6 +14,7 @@
 
 import dynamic from "next/dynamic";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useSessions } from "@/hooks/useSessions";
 import { useSessionSwitch } from "@/hooks/useSessionSwitch";
@@ -90,7 +91,6 @@ export default function V2TestPage(): React.ReactNode {
   // ------------------------------------------------------------------
   // UI-only state
   // ------------------------------------------------------------------
-  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<
@@ -130,11 +130,12 @@ export default function V2TestPage(): React.ReactNode {
   const {
     handleSessionSelect,
     handleDeleteSession,
-    handleClearDB,
     handleSimulate,
     handleReset,
     handleRenameSession,
   } = useSessionSwitch({ sessionId, setSessionId, fetchSessions, showStatus });
+
+  const router = useRouter();
 
   // ------------------------------------------------------------------
   // Store subscriptions
@@ -241,11 +242,6 @@ export default function V2TestPage(): React.ReactNode {
   const handleToggleDebug = () =>
     useGameStore.getState().setDebugMode(!debugMode);
 
-  const handleConfirmClearDB = async () => {
-    setIsClearModalOpen(false);
-    await handleClearDB();
-  };
-
   const handleConfirmDeleteSession = async () => {
     if (!sessionPendingDelete) return;
     const pending = sessionPendingDelete;
@@ -261,30 +257,6 @@ export default function V2TestPage(): React.ReactNode {
       {/* ----------------------------------------------------------------
           Modals
       ---------------------------------------------------------------- */}
-      <Modal
-        isOpen={isClearModalOpen}
-        onClose={() => setIsClearModalOpen(false)}
-        title={t("modal.confirmDbWipe")}
-        footer={
-          <>
-            <button
-              onClick={() => setIsClearModalOpen(false)}
-              className="px-4 py-2 text-slate-400 hover:text-white text-sm font-bold transition-colors"
-            >
-              {t("modal.cancel")}
-            </button>
-            <button
-              onClick={handleConfirmClearDB}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold rounded-lg transition-colors shadow-lg shadow-rose-900/20"
-            >
-              {t("modal.wipeAllData")}
-            </button>
-          </>
-        }
-      >
-        <p>{t("modal.wipeWarning")}</p>
-      </Modal>
-
       <Modal
         isOpen={isHelpModalOpen}
         onClose={() => setIsHelpModalOpen(false)}
@@ -413,7 +385,7 @@ export default function V2TestPage(): React.ReactNode {
             aiSummaryEnabled={aiSummaryEnabled}
             onSimulate={handleSimulate}
             onReset={handleReset}
-            onClearDB={() => setIsClearModalOpen(true)}
+            onTasks={() => router.push("/tasks")}
             onToggleDebug={handleToggleDebug}
             onOpenSettings={() => setIsSettingsModalOpen(true)}
             onOpenHelp={() => setIsHelpModalOpen(true)}
@@ -446,8 +418,8 @@ export default function V2TestPage(): React.ReactNode {
         onSessionSelect={handleSessionSelect}
         onSimulate={handleSimulate}
         onReset={handleReset}
-        onClearDB={() => {
-          setIsClearModalOpen(true);
+        onTasks={() => {
+          router.push("/tasks");
           setMobileMenuOpen(false);
         }}
       />

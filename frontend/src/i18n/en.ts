@@ -6,7 +6,7 @@ const en = {
   // Header Controls
   "header.simulate": "SIMULATE",
   "header.reset": "RESET",
-  "header.clearDb": "CLEAR DB",
+  "header.tasks": "TASKS",
   "header.debugOn": "DEBUG ON",
   "header.debugOff": "DEBUG OFF",
   "header.settings": "SETTINGS",
@@ -20,11 +20,7 @@ const en = {
   "header.tour": "TOUR",
 
   // Modals
-  "modal.confirmDbWipe": "Confirm Database Wipe",
   "modal.cancel": "Cancel",
-  "modal.wipeAllData": "Wipe All Data",
-  "modal.wipeWarning":
-    "Are you sure you want to permanently delete all session history and events? This action cannot be undone and will reset the current visualizer state.",
   "modal.keyboardShortcuts": "Keyboard Shortcuts",
   "modal.close": "Close",
   "modal.toggleDebug": "Toggle debug mode",
@@ -180,9 +176,6 @@ const en = {
   "status.errorConnecting": "Error connecting to backend.",
   "status.sessionRenamed": "Session renamed.",
   "status.failedRenameSession": "Failed to rename session.",
-  "status.clearingDatabase": "Clearing database...",
-  "status.databaseCleared": "Database cleared.",
-  "status.failedClearDatabase": "Failed to clear database.",
   "status.triggeringSimulation": "Triggering simulation...",
   "status.simulationStarted": "Simulation started!",
   "status.failedSimulation": "Failed to trigger simulation.",
