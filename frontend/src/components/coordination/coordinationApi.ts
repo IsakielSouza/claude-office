@@ -83,3 +83,49 @@ export const fetchRuns = (qs = ""): Promise<{ runs: CoordRun[] }> =>
 
 export const fetchDashboard = (qs = ""): Promise<CoordDashboard> =>
   getJson<CoordDashboard>(`/dashboard${qs}`);
+
+// ── HITL (human-in-the-loop): prompts que aguardam resposta do usuário ──────
+export type HitlKind = "yesno" | "choice" | "multi" | "text";
+
+export interface HitlOption {
+  key: string;
+  label: string;
+}
+
+export interface HitlPrompt {
+  id: number;
+  source_ref: string | null;
+  session_id: string | null;
+  agent: string | null;
+  project: string | null;
+  question: string;
+  context: string | null;
+  kind: HitlKind;
+  options: HitlOption[] | null;
+  status: "pending" | "answered" | "expired";
+  answer: boolean | string | string[] | null;
+  created_at: string;
+  expires_at: string | null;
+  issue_title: string | null;
+  issue_url: string | null;
+}
+
+export type HitlAnswerValue = boolean | string | string[];
+
+export const fetchHitlPending = (): Promise<{ prompts: HitlPrompt[] }> =>
+  getJson<{ prompts: HitlPrompt[] }>(`/hitl?status=pending`);
+
+export async function answerHitl(
+  id: number,
+  answer: HitlAnswerValue,
+  answeredBy = "web",
+): Promise<void> {
+  const res = await fetch(`${BASE}/hitl/${id}/answer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answer, answered_by: answeredBy }),
+  });
+  if (res.status === 503) throw new CoordUnavailableError();
+  if (res.status === 409) throw new Error("hitl_already_resolved");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}

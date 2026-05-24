@@ -253,6 +253,16 @@ const es: Record<TranslationKey, string> = {
   "settings.filterError": "Errores y paradas",
   "settings.filterTaskComplete": "Tareas completadas",
   "settings.filterArrival": "Llegadas de agentes",
+
+  // HITL bridge
+  "hitl.waitingCount": "{count} esperando tu respuesta",
+  "hitl.badgeWaiting": "esperándote",
+  "hitl.open": "Abrir",
+  "hitl.yes": "Sí",
+  "hitl.no": "No",
+  "hitl.submit": "Responder",
+  "hitl.textPlaceholder": "Escribe tu respuesta…",
+  "hitl.noIssueSection": "Prompts sin issue",
 };
 
 export default es;

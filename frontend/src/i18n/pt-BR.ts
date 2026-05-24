@@ -253,6 +253,16 @@ const ptBR: Record<TranslationKey, string> = {
   "settings.filterError": "Erros e paradas",
   "settings.filterTaskComplete": "Tarefas concluídas",
   "settings.filterArrival": "Chegadas de agentes",
+
+  // HITL bridge
+  "hitl.waitingCount": "{count} aguardando sua resposta",
+  "hitl.badgeWaiting": "aguardando você",
+  "hitl.open": "Abrir",
+  "hitl.yes": "Sim",
+  "hitl.no": "Não",
+  "hitl.submit": "Responder",
+  "hitl.textPlaceholder": "Digite sua resposta…",
+  "hitl.noIssueSection": "Prompts sem issue",
 };
 
 export default ptBR;

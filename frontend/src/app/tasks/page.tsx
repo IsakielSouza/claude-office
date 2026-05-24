@@ -2,10 +2,18 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, Lock, RefreshCw } from "lucide-react";
 import { CoordinationNav } from "@/components/coordination/CoordinationNav";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useCoordinationPoll } from "@/components/coordination/useCoordinationPoll";
-import { fetchTasks } from "@/components/coordination/coordinationApi";
+import {
+  fetchTasks,
+  fetchHitlPending,
+  answerHitl,
+  type HitlPrompt,
+  type HitlAnswerValue,
+} from "@/components/coordination/coordinationApi";
+import HitlAnswerModal from "@/components/coordination/HitlAnswerModal";
 
 const CLAIM_COLORS: Record<string, string> = {
   claimed: "text-sky-400",
@@ -22,8 +30,10 @@ const RUN_COLORS: Record<string, string> = {
 };
 
 export default function TasksPage(): React.ReactNode {
+  const { t: tr } = useTranslation();
   const [state, setState] = useState("");
   const [project, setProject] = useState("");
+  const [selectedPrompt, setSelectedPrompt] = useState<HitlPrompt | null>(null);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -37,6 +47,34 @@ export default function TasksPage(): React.ReactNode {
     () => fetchTasks(qs),
     [qs],
   );
+
+  const { data: hitlData, refetch: refetchHitl } = useCoordinationPoll(
+    fetchHitlPending,
+    [],
+  );
+
+  const promptsBySourceRef = useMemo(() => {
+    const m = new Map<string, HitlPrompt[]>();
+    for (const p of hitlData?.prompts ?? []) {
+      if (!p.source_ref) continue;
+      const list = m.get(p.source_ref) ?? [];
+      list.push(p);
+      m.set(p.source_ref, list);
+    }
+    return m;
+  }, [hitlData]);
+
+  const promptsWithoutIssue = useMemo(
+    () => (hitlData?.prompts ?? []).filter((p) => !p.source_ref),
+    [hitlData],
+  );
+  const pendingCount = hitlData?.prompts.length ?? 0;
+
+  const handleAnswer = async (id: number, answer: HitlAnswerValue) => {
+    await answerHitl(id, answer);
+    await refetchHitl();
+    await refetch();
+  };
 
   return (
     <main className="min-h-screen bg-neutral-950 text-slate-200 p-4">
@@ -53,6 +91,13 @@ export default function TasksPage(): React.ReactNode {
       </div>
 
       <CoordinationNav />
+
+      {pendingCount > 0 && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm font-bold">
+          <Lock size={14} />
+          {tr("hitl.waitingCount", { count: pendingCount })}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 items-center mb-3">
         <select
@@ -120,6 +165,17 @@ export default function TasksPage(): React.ReactNode {
                     {t.number}
                   </td>
                   <td className="px-3 py-2 max-w-md truncate">
+                    {(promptsBySourceRef.get(t.source_ref)?.length ?? 0) > 0 && (
+                      <button
+                        onClick={() => {
+                          const p0 = promptsBySourceRef.get(t.source_ref)?.[0];
+                          if (p0) setSelectedPrompt(p0);
+                        }}
+                        className="mr-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
+                      >
+                        <Lock size={11} /> {tr("hitl.badgeWaiting")}
+                      </button>
+                    )}
                     {t.url ? (
                       <a
                         href={t.url}
@@ -175,6 +231,36 @@ export default function TasksPage(): React.ReactNode {
           </table>
         </div>
       )}
+
+      {promptsWithoutIssue.length > 0 && (
+        <div className="mt-4">
+          <h2 className="text-sm font-bold text-slate-300 mb-2">
+            {tr("hitl.noIssueSection")}
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {promptsWithoutIssue.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between border border-slate-800 rounded px-3 py-2"
+              >
+                <span className="truncate">{p.question}</span>
+                <button
+                  onClick={() => setSelectedPrompt(p)}
+                  className="ml-3 px-3 py-1 text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded hover:bg-amber-500/30"
+                >
+                  {tr("hitl.open")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <HitlAnswerModal
+        prompt={selectedPrompt}
+        onClose={() => setSelectedPrompt(null)}
+        onSubmit={handleAnswer}
+      />
     </main>
   );
 }

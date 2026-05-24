@@ -251,6 +251,16 @@ const en = {
   "settings.filterError": "Errors and stops",
   "settings.filterTaskComplete": "Task completions",
   "settings.filterArrival": "Agent arrivals",
+
+  // HITL bridge
+  "hitl.waitingCount": "{count} awaiting your response",
+  "hitl.badgeWaiting": "awaiting you",
+  "hitl.open": "Open",
+  "hitl.yes": "Yes",
+  "hitl.no": "No",
+  "hitl.submit": "Respond",
+  "hitl.textPlaceholder": "Type your answer…",
+  "hitl.noIssueSection": "Prompts without issue",
 } as const;
 
 export type TranslationKey = keyof typeof en;
