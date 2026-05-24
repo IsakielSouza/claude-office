@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { useBuildingFeed } from "@/hooks/useBuildingFeed";
 import { useBuildingStore } from "@/stores/buildingStore";
@@ -49,18 +48,16 @@ export function BuildingView({ sessions }: BuildingViewProps): React.ReactNode {
   useBuildingFeed({ enabled: view === "building" });
   const live = useBuildingStore((s) => s.buildingState);
 
-  // Active sessions that don't match any floor
-  const unmatchedSessions = useMemo(
-    () =>
-      buildingConfig
-        ? sessions.filter(
-            (s) =>
-              s.status === "active" &&
-              !sessionMatchesAnyFloor(s, buildingConfig.floors),
-          )
-        : [],
-    [sessions, buildingConfig],
-  );
+  // Prefer live lobby count from feed; fall back to prop-based unmatched count.
+  const lobbyCount =
+    live?.lobby?.sessions?.length ??
+    (buildingConfig
+      ? sessions.filter(
+          (s) =>
+            s.status === "active" &&
+            !sessionMatchesAnyFloor(s, buildingConfig.floors),
+        ).length
+      : 0);
 
   if (!buildingConfig) return null;
 
@@ -88,6 +85,13 @@ export function BuildingView({ sessions }: BuildingViewProps): React.ReactNode {
             Edit
           </button>
         </div>
+        {live?.totals && (
+          <p className="text-xs text-emerald-400 font-mono mt-1">
+            {live.totals.activeAgents} agentes ativos em{" "}
+            {live.totals.activeFloors}{" "}
+            {live.totals.activeFloors === 1 ? "andar" : "andares"}
+          </p>
+        )}
       </div>
 
       {/* Building cross-section */}
@@ -134,8 +138,8 @@ export function BuildingView({ sessions }: BuildingViewProps): React.ReactNode {
                 Lobby
               </span>
               <span className="text-xs text-slate-600 font-mono">
-                {unmatchedSessions.length > 0
-                  ? `${unmatchedSessions.length} active unassigned`
+                {lobbyCount > 0
+                  ? `${lobbyCount} active unassigned`
                   : "All sessions assigned"}
               </span>
             </div>
