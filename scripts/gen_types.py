@@ -30,6 +30,14 @@ from app.models.sessions import (  # noqa: E402  # type: ignore[import]
     Session,
     WhiteboardData,
 )
+from app.models.building import (  # noqa: E402  # type: ignore[import]
+    AgentLive,
+    BuildingState,
+    BuildingTotals,
+    FloorLive,
+    LobbyLive,
+    SessionLive,
+)
 
 # All Pydantic BaseModel subclasses to generate types for
 # (TypedDict classes like ConversationEntry and HistoryEntry are not BaseModel
@@ -54,6 +62,12 @@ MODELS = [
     ChangedFile,
     Commit,
     GitStatus,
+    AgentLive,
+    SessionLive,
+    FloorLive,
+    LobbyLive,
+    BuildingTotals,
+    BuildingState,
 ]
 
 # Generate combined JSON schema with camelCase field names (by_alias=True)
