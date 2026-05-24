@@ -43,6 +43,7 @@ class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: dict[str, list[WebSocket]] = {}
         self.room_connections: dict[str, list[WebSocket]] = {}
+        self.building_connections: list[WebSocket] = []
         self._lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
@@ -185,6 +186,42 @@ class ConnectionManager:
             return
 
         await self._broadcast_to_connections(message, connections, self.room_connections, room_id)
+
+    # ------------------------------------------------------------------
+    # Building-level WebSocket support
+    # ------------------------------------------------------------------
+
+    async def connect_building(self, websocket: WebSocket) -> None:
+        """Accept a WebSocket connection for the single building feed."""
+        await websocket.accept()
+        async with self._lock:
+            self.building_connections.append(websocket)
+
+    async def disconnect_building(self, websocket: WebSocket) -> None:
+        """Remove a WebSocket connection from the building feed."""
+        async with self._lock:
+            if websocket in self.building_connections:
+                self.building_connections.remove(websocket)
+
+    async def broadcast_building(self, message: dict[str, Any]) -> None:
+        """Send a message to all clients connected to the building feed."""
+        async with self._lock:
+            connections = self.building_connections.copy()
+        if not connections:
+            return
+        failed: list[WebSocket] = []
+        for connection in connections:
+            try:
+                if connection.client_state == WebSocketState.CONNECTED:
+                    await connection.send_json(message)
+            except Exception as e:
+                logger.warning("Failed to send to building WebSocket: %s", e)
+                failed.append(connection)
+        if failed:
+            async with self._lock:
+                for conn in failed:
+                    if conn in self.building_connections:
+                        self.building_connections.remove(conn)
 
 
 manager = ConnectionManager()
