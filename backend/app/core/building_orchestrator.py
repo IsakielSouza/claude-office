@@ -92,9 +92,7 @@ class BuildingOrchestrator:
         active_agents = 0
         for floor in sorted(config.floors, key=lambda f: f.floor_number, reverse=True):
             entries = by_floor.get(floor.id, [])
-            sessions_live = [
-                _project_session(sid, sm, names.get(sid, sid)) for sid, sm in entries
-            ]
+            sessions_live = [_project_session(sid, sm, names.get(sid, sid)) for sid, sm in entries]
             agent_count = sum(1 + len(s.agents) for s in sessions_live)
             is_active = len(sessions_live) > 0
             if is_active:

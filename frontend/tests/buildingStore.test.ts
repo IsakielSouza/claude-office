@@ -22,7 +22,9 @@ describe("buildingStore", () => {
 
   it("stores a building state", () => {
     useBuildingStore.getState().setBuildingState(sample);
-    expect(useBuildingStore.getState().buildingState?.buildingName).toBe("HMTrack");
+    expect(useBuildingStore.getState().buildingState?.buildingName).toBe(
+      "HMTrack",
+    );
   });
 
   it("tracks connection flag", () => {

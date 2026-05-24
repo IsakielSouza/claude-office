@@ -55,7 +55,9 @@ export function FloorRowLive({
               ))}
             </div>
           ) : (
-            <span className="text-xs text-slate-600 font-mono">vazio · luzes apagadas</span>
+            <span className="text-xs text-slate-600 font-mono">
+              vazio · luzes apagadas
+            </span>
           )}
           {firstTask && (
             <span className="text-[10px] text-slate-400 font-mono truncate max-w-[18rem] mt-1">

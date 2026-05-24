@@ -76,7 +76,9 @@ export function BuildingView({ sessions }: BuildingViewProps): React.ReactNode {
             className={`inline-block w-2 h-2 rounded-full ml-2 align-middle ${
               feedConnected ? "bg-emerald-500" : "bg-slate-600"
             }`}
-            title={feedConnected ? "Feed ao vivo conectado" : "Feed desconectado"}
+            title={
+              feedConnected ? "Feed ao vivo conectado" : "Feed desconectado"
+            }
           />
         </h2>
         <div className="flex items-center justify-center gap-3">

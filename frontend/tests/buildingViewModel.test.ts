@@ -32,7 +32,13 @@ describe("buildFloorChips", () => {
             bossState: "working",
             bossTask: "review PR",
             agents: [
-              { id: "a1", name: "Helper", state: "working", task: "tests", color: "#3b82f6" },
+              {
+                id: "a1",
+                name: "Helper",
+                state: "working",
+                task: "tests",
+                color: "#3b82f6",
+              },
             ],
           },
         ],
@@ -56,7 +62,15 @@ describe("buildFloorChips", () => {
             displayName: "x",
             bossState: "idle",
             bossTask: null,
-            agents: [{ id: "agent-xyz", name: null, state: "idle", task: null, color: "#22c55e" }],
+            agents: [
+              {
+                id: "agent-xyz",
+                name: null,
+                state: "idle",
+                task: null,
+                color: "#22c55e",
+              },
+            ],
           },
         ],
       }),
