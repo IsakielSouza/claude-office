@@ -38,6 +38,7 @@ class SessionLive(BaseModel):
     display_name: str
     boss_state: str
     boss_task: str | None = None
+    boss_color: str | None = None
     agents: list[AgentLive] = Field(default_factory=list)
 
 

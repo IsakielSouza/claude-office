@@ -388,18 +388,33 @@ class EventProcessor:
 
         sm.transition(event)
 
-        # Apply resolved floor/room to in-memory state machine.
-        if resolved_floor_id:
-            sm.floor_id = resolved_floor_id
-            sm.room_id = resolved_room_id
-
-        # Sync team fields from event data.
+        # Sync team fields from event data BEFORE resolving the room key so the
+        # room scoping below can tell apart real Agent Teams (shared team_name)
+        # from independent solo sessions that merely share a repo.
         if event.data:
             if event.data.team_name is not None:
                 sm.team_name = event.data.team_name
             if event.data.teammate_name is not None:
                 sm.teammate_name = event.data.teammate_name
                 sm.is_lead = False
+
+        # Apply resolved floor/room to in-memory state machine.
+        #
+        # The ProductMapper keys rooms by repo name, so every session in the
+        # same repo resolves to the same room_id. That is correct for real
+        # Agent Teams (they share a team_name and SHOULD merge into one room),
+        # but wrong for independent solo sessions that merely share a repo —
+        # they would be fused onto the same desk by the RoomOrchestrator.
+        #
+        # Fix: for solo sessions (no team_name) scope the room_id by
+        # session_id so each one becomes its own room/BOSS. Sessions with a
+        # real team_name keep the shared, repo-derived room_id and still merge.
+        if resolved_floor_id:
+            sm.floor_id = resolved_floor_id
+            if resolved_room_id and not sm.team_name:
+                sm.room_id = f"{resolved_room_id}::{event.session_id}"
+            else:
+                sm.room_id = resolved_room_id
 
         agent_id = event.data.agent_id if event.data and event.data.agent_id else "main"
 

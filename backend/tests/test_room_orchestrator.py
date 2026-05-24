@@ -122,6 +122,46 @@ class TestTeamMerge:
         assert tm_sub.parent_id is not None
 
 
+class TestTeammateDeskAndColor:
+    def test_first_teammate_desk_starts_at_one(self) -> None:
+        """Off-by-one regression: desk_number must start at 1, not 0.
+
+        getDeskPosition(0) computes a negative column on the frontend and
+        places the first teammate off the grid.
+        """
+        orch = RoomOrchestrator("room-1")
+        orch.add_session("lead-sess", _make_sm(team_name="squad", is_lead=True))
+        orch.add_session("tm-sess", _make_sm(team_name="squad", teammate_name="tm"))
+
+        state = orch.merge()
+        assert state is not None
+        teammate = next(a for a in state.agents if a.character_type == "teammate")
+        assert teammate.desk == 1
+        assert teammate.number == 1
+
+    def test_distinct_teammates_get_distinct_colors(self) -> None:
+        """Colors are hashed per session_id, so distinct sessions differ."""
+        orch = RoomOrchestrator("room-1")
+        orch.add_session("lead-sess", _make_sm(team_name="squad", is_lead=True))
+        orch.add_session("tm-sess-a", _make_sm(team_name="squad", teammate_name="a"))
+        orch.add_session("tm-sess-b", _make_sm(team_name="squad", teammate_name="b"))
+
+        state = orch.merge()
+        assert state is not None
+        teammates = [a for a in state.agents if a.character_type == "teammate"]
+        assert len(teammates) == 2
+        assert teammates[0].color != teammates[1].color
+
+    def test_color_is_stable_for_same_session(self) -> None:
+        orch1 = RoomOrchestrator("room-1")
+        orch1.add_session("sess-stable", _make_sm())
+        orch2 = RoomOrchestrator("room-1")
+        orch2.add_session("sess-stable", _make_sm())
+        assert (
+            orch1._sessions["sess-stable"].color == orch2._sessions["sess-stable"].color
+        )
+
+
 class TestKanbanAggregation:
     def test_kanban_tasks_merged_from_all_sessions(self) -> None:
         orch = RoomOrchestrator("room-1")

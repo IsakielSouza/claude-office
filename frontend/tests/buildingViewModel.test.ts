@@ -53,6 +53,26 @@ describe("buildFloorChips", () => {
     expect(chips[1].task).toBe("tests");
   });
 
+  it("uses the per-session bossColor when present", () => {
+    const chips = buildFloorChips(
+      floor({
+        sessions: [
+          {
+            sessionId: "s1",
+            displayName: "hmtrack-api-py",
+            bossState: "working",
+            bossTask: null,
+            bossColor: "#3b82f6",
+            agents: [],
+          },
+        ],
+      }),
+    );
+    expect(chips).toHaveLength(1);
+    expect(chips[0].isBoss).toBe(true);
+    expect(chips[0].color).toBe("#3b82f6");
+  });
+
   it("falls back to agent id when name is missing", () => {
     const chips = buildFloorChips(
       floor({

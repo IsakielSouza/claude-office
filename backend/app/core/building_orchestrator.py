@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.core.colors import color_for_id
 from app.core.floor_config import BuildingConfig
 from app.core.state_machine import OfficePhase
 from app.models.building import (
@@ -24,7 +25,6 @@ from app.models.building import (
 if TYPE_CHECKING:
     from app.core.state_machine import StateMachine
 
-_BOSS_COLOR = "#f59e0b"
 _TASK_MAX_LEN = 80
 
 
@@ -50,6 +50,7 @@ def _project_session(session_id: str, sm: StateMachine, display_name: str) -> Se
         display_name=display_name,
         boss_state=str(sm.boss_state),
         boss_task=_truncate(sm.boss_current_task),
+        boss_color=color_for_id(session_id),
         agents=agents,
     )
 

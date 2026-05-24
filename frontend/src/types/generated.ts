@@ -86,6 +86,7 @@ export type Sessionid = string;
 export type Displayname = string;
 export type Bossstate = string;
 export type Bosstask = string | null;
+export type Bosscolor = string | null;
 export type Agents = AgentLive[];
 export type Sessions = SessionLive[];
 export type Agentcount = number;
@@ -452,6 +453,7 @@ export interface SessionLive {
   displayName: Displayname;
   bossState: Bossstate;
   bossTask?: Bosstask;
+  bossColor?: Bosscolor;
   agents?: Agents;
   [k: string]: unknown;
 }

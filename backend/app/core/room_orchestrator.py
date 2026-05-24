@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from app.core.colors import color_for_id
 from app.models.agents import Agent, AgentState, BossState, OfficeState
 from app.models.sessions import GameState, KanbanTask, WhiteboardData
 
@@ -21,16 +22,6 @@ if TYPE_CHECKING:
     from app.core.state_machine import StateMachine
 
 logger = logging.getLogger(__name__)
-
-# Colors assigned to teammates in order of arrival (index 0 = first teammate)
-_TEAMMATE_COLORS = [
-    "#3b82f6",  # blue
-    "#22c55e",  # green
-    "#a855f7",  # purple
-    "#f97316",  # orange
-    "#ec4899",  # pink
-    "#14b8a6",  # teal
-]
 
 # Maps BossState to AgentState for teammate character rendering
 _BOSS_TO_AGENT: dict[BossState, AgentState] = {
@@ -76,7 +67,10 @@ class RoomOrchestrator:
         # No team context -> solo session, always the lead.
         is_lead = sm.is_lead or sm.teammate_name is None if sm.team_name else True
 
-        color = "#f59e0b" if is_lead else self._next_teammate_color()
+        # Color derived from a stable hash of the session_id (not a constant
+        # for leads / not arrival-order for teammates) so each session has its
+        # own stable color and distinct sessions never collide.
+        color = color_for_id(session_id)
 
         self._sessions[session_id] = _SessionEntry(
             session_id=session_id,
@@ -136,10 +130,6 @@ class RoomOrchestrator:
         # Fallback: first session if no explicit lead
         return next(iter(self._sessions.values()), None)
 
-    def _next_teammate_color(self) -> str:
-        teammate_count = sum(1 for e in self._sessions.values() if not e.is_lead)
-        return _TEAMMATE_COLORS[teammate_count % len(_TEAMMATE_COLORS)]
-
     def _merge_team(self, lead_entry: _SessionEntry, lead_state: GameState) -> GameState:
         merged_agents: list[Agent] = []
         all_kanban: dict[str, KanbanTask] = {}
@@ -165,7 +155,9 @@ class RoomOrchestrator:
                 linear_id=task.linear_id,
             )
 
-        desk_number = 0
+        # Desks start at 1: getDeskPosition(0) computes a negative column and
+        # places the first teammate off the grid (off-by-one bug).
+        desk_number = 1
         for session_id, entry in self._sessions.items():
             if entry.is_lead:
                 continue

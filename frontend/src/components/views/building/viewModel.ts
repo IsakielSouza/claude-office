@@ -1,6 +1,10 @@
 import type { FloorLive } from "@/types";
 
-/** Color used for the boss/lead character (matches backend lead color). */
+/**
+ * Fallback boss/lead color. The backend now sends a per-session `bossColor`
+ * derived from a stable hash of the session_id so distinct sessions get
+ * distinct colors; this constant is only used when that field is absent.
+ */
 export const BOSS_COLOR = "#f59e0b";
 
 /** One rendered avatar within a floor row. */
@@ -22,7 +26,7 @@ export function buildFloorChips(floor: FloorLive): AgentChip[] {
       label: session.displayName,
       state: session.bossState,
       task: session.bossTask ?? null,
-      color: BOSS_COLOR,
+      color: session.bossColor ?? BOSS_COLOR,
       isBoss: true,
     });
     for (const agent of session.agents ?? []) {
