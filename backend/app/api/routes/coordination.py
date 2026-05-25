@@ -6,6 +6,7 @@ Degrade gracioso: qualquer falha de conexão vira HTTP 503 com payload claro.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Annotated, Any, cast
@@ -86,6 +87,51 @@ async def list_tasks(
     except (OperationalError, InterfaceError, DBAPIError) as exc:
         logger.warning("coordination /tasks unavailable: %s", exc)
         raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
+
+
+# ── POST /tasks (task-write, #383) ─────────────────────────────────────────────
+# Cria issue REAL no agents-ia via `gh` (fonte de verdade); o coletor-task
+# sincroniza de volta pro :5433. NÃO escreve o read-model direto (§4 SPEC #368).
+# Cockpit é localhost-only (middleware) → escrita ao GitHub fica contida.
+_AGENTS_IA_REPO = "IsakielSouza/agents-ia"
+
+
+class CreateTaskBody(BaseModel):
+    title: str
+    body: str = ""
+    agent: str | None = None  # vira prefixo "[agent]" no título (padrão do gerente)
+    labels: list[str] = []
+
+
+@router.post("/tasks")
+async def create_task(body: CreateTaskBody) -> dict[str, Any]:
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(status_code=422, detail={"error": "title_required"})
+    full_title = f"[{body.agent.strip()}] {title}" if body.agent else title
+    args = [
+        "gh", "issue", "create", "--repo", _AGENTS_IA_REPO,
+        "--title", full_title,
+        "--body", body.body.strip() or "(criada pelo cockpit)",
+    ]
+    for lb in body.labels:
+        if lb.strip():
+            args += ["--label", lb.strip()]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        out, err = await proc.communicate()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=502, detail={"error": "gh_not_found"}) from exc
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail={"error": "gh_failed", "message": err.decode()[:500]},
+        )
+    return {"url": out.decode().strip()}
 
 
 # ── /agent-runs ───────────────────────────────────────────────────────────────

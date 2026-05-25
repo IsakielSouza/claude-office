@@ -14,6 +14,7 @@ import {
   type HitlAnswerValue,
 } from "@/components/coordination/coordinationApi";
 import HitlAnswerModal from "@/components/coordination/HitlAnswerModal";
+import { CreateTaskForm } from "@/components/coordination/CreateTaskForm";
 
 const CLAIM_COLORS: Record<string, string> = {
   claimed: "text-sky-400",
@@ -106,6 +107,10 @@ export default function TasksPage(): React.ReactNode {
       </div>
 
       <CoordinationNav />
+
+      <div className="mb-3">
+        <CreateTaskForm onCreated={() => void refetch()} />
+      </div>
 
       {pendingCount > 0 && (
         <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm font-bold">

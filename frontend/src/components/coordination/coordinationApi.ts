@@ -90,6 +90,32 @@ async function getJson<T>(path: string): Promise<T> {
 export const fetchTasks = (qs = ""): Promise<{ tasks: CoordTask[] }> =>
   getJson<{ tasks: CoordTask[] }>(`/tasks${qs}`);
 
+/** Cria issue real no agents-ia (via `gh` no backend). Retorna a URL criada. */
+export async function createTask(input: {
+  title: string;
+  body?: string;
+  agent?: string;
+  labels?: string[];
+}): Promise<{ url: string }> {
+  const res = await fetch(`${BASE}/tasks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (res.status === 503) throw new CoordUnavailableError();
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = (await res.json()) as { detail?: { message?: string; error?: string } };
+      msg = j?.detail?.message ?? j?.detail?.error ?? msg;
+    } catch {
+      /* mantém msg padrão */
+    }
+    throw new Error(msg);
+  }
+  return (await res.json()) as { url: string };
+}
+
 export const fetchRuns = (qs = ""): Promise<{ runs: CoordRun[] }> =>
   getJson<{ runs: CoordRun[] }>(`/agent-runs${qs}`);
 
