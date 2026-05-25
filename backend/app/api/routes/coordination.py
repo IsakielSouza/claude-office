@@ -104,12 +104,49 @@ class CreateTaskBody(BaseModel):
     labels: list[str] = []
 
 
+def _norm_title(s: str) -> str:
+    """Normaliza p/ dedup: colapsa espaços + casefold."""
+    return " ".join(s.split()).casefold()
+
+
+def _find_duplicate(existing: list[dict[str, Any]], full_title: str) -> str | None:
+    """URL de uma issue ABERTA com título normalizado idêntico, ou None. Dedup
+    conservador (match exato normalizado) — não engole tasks distintas (#413)."""
+    target = _norm_title(full_title)
+    for it in existing:
+        if _norm_title(str(it.get("title", ""))) == target:
+            return str(it.get("url") or "") or None
+    return None
+
+
+async def _list_open_issues() -> list[dict[str, Any]]:
+    """Issues abertas do agents-ia p/ dedup (best-effort: [] se gh falhar)."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "gh", "issue", "list", "--repo", _AGENTS_IA_REPO,
+            "--state", "open", "--limit", "1000", "--json", "title,url",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        out, _ = await proc.communicate()
+        if proc.returncode != 0:
+            return []
+        return cast("list[dict[str, Any]]", json.loads(out.decode() or "[]"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
 @router.post("/tasks")
 async def create_task(body: CreateTaskBody) -> dict[str, Any]:
     title = body.title.strip()
     if not title:
         raise HTTPException(status_code=422, detail={"error": "title_required"})
     full_title = f"[{body.agent.strip()}] {title}" if body.agent else title
+    # Dedup (#413): não recria issue aberta de título idêntico (memory
+    # feedback_checar_backlog_antes_de_abrir_issue, agora no nível do cockpit).
+    dup = _find_duplicate(await _list_open_issues(), full_title)
+    if dup:
+        return {"url": dup, "deduped": True}
     args = [
         "gh", "issue", "create", "--repo", _AGENTS_IA_REPO,
         "--title", full_title,

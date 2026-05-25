@@ -290,6 +290,20 @@ def test_create_agent_degrade_503_when_db_down() -> None:
         app.dependency_overrides.pop(get_coordination_db, None)
 
 
+def test_find_duplicate_normalized_match() -> None:
+    from app.api.routes.coordination import _find_duplicate
+
+    existing = [
+        {"title": "[hmtrack-front] Tela X", "url": "u1"},
+        {"title": "Outra coisa", "url": "u2"},
+    ]
+    # match por normalização (espaços colapsados + casefold)
+    assert _find_duplicate(existing, "[hmtrack-front]   tela x") == "u1"
+    # título distinto → sem dedup (não engole task diferente)
+    assert _find_duplicate(existing, "[hmtrack-front] Tela Y") is None
+    assert _find_duplicate([], "qualquer") is None
+
+
 class _BoomSession:
     async def execute(self, *args, **kwargs):  # type: ignore[no-untyped-def]
         raise OperationalError("SELECT 1", {}, Exception("down"))
