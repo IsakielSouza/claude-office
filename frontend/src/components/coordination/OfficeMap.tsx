@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CoordAgent } from "./coordinationApi";
+import { buildWalkable, findPath, nearestWalkable, type Tile } from "./pathfinding";
 
 // ── Camada 3, slice 2: mapa espacial estilo Gather (planta-baixa pixel-art).
 // Renderizador Canvas 2D adaptado do mockup Agents-Office (pixel-office.jsx):
@@ -68,8 +69,9 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 // CEO-(Humano): presença do usuário no mapa (não é agente/roster). Spawn na área
-// central. Movimento click-to-walk (A*) = enhancement visual posterior.
-const CEO_SPAWN = { cx: 16 * TILE, cy: 21 * TILE };
+// central (OPEN FLOOR). Click-to-walk (A*) movimenta o avatar até o tile clicado (#411).
+const CEO_SPAWN_TILE: Tile = [16, 21];
+const WALK_STEP_MS = 110; // tempo por tile na animação
 
 function px(ctx: CanvasRenderingContext2D, x: number, y: number, c: string, w = 1, h = 1) {
   ctx.fillStyle = c;
@@ -193,6 +195,42 @@ export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode
   const fgRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<Placed | null>(null);
 
+  // ── Click-to-walk (#411): o avatar do CEO anda (A*) até o tile clicado ──────
+  const [ceo, setCeo] = useState<Tile>(CEO_SPAWN_TILE);
+  const ceoRef = useRef<Tile>(CEO_SPAWN_TILE);
+  // ref atualizada em effect (não no render) — regra react-hooks/refs
+  useEffect(() => {
+    ceoRef.current = ceo;
+  });
+  const walkTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // grid de tiles andáveis (paredes/portas/desks) — fixo, computado uma vez
+  const grid = useMemo(() => buildWalkable(COLS, ROWS, ROOMS, DESKS), []);
+
+  // para a animação ao desmontar
+  useEffect(() => {
+    return () => {
+      if (walkTimer.current) clearInterval(walkTimer.current);
+    };
+  }, []);
+
+  function walkTo(tileX: number, tileY: number): void {
+    const target = nearestWalkable(grid, tileX, tileY);
+    if (!target) return;
+    const path = findPath(grid, ceoRef.current, target);
+    if (path.length < 2) return; // já está lá / sem caminho
+    if (walkTimer.current) clearInterval(walkTimer.current);
+    let i = 1; // pula o tile atual
+    walkTimer.current = setInterval(() => {
+      if (i >= path.length) {
+        if (walkTimer.current) clearInterval(walkTimer.current);
+        walkTimer.current = null;
+        return;
+      }
+      setCeo(path[i]);
+      i += 1;
+    }, WALK_STEP_MS);
+  }
+
   // desenha a planta uma vez
   useEffect(() => {
     const c = bgRef.current;
@@ -216,8 +254,10 @@ export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode
     for (const p of placed) {
       drawAgent(ctx, p.cx, p.cy, STATUS_COLOR[p.agent.status] ?? "#a78bfa");
     }
-    drawCEO(ctx, CEO_SPAWN.cx, CEO_SPAWN.cy);
-  }, [placed]);
+    drawCEO(ctx, ceo[0] * TILE + TILE / 2, ceo[1] * TILE + TILE / 2);
+  }, [placed, ceo]);
+
+  const ceoPx = { cx: ceo[0] * TILE + TILE / 2, cy: ceo[1] * TILE + TILE / 2 };
 
   const W = COLS * TILE;
   const H = ROWS * TILE;
@@ -236,8 +276,15 @@ export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode
           ref={fgRef}
           width={W}
           height={H}
-          className="absolute inset-0 w-full h-full"
+          className="absolute inset-0 w-full h-full cursor-pointer"
           style={{ imageRendering: "pixelated" }}
+          title="Clique para o CEO caminhar até o ponto"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const mx = ((e.clientX - rect.left) / rect.width) * W;
+            const my = ((e.clientY - rect.top) / rect.height) * H;
+            walkTo(Math.floor(mx / TILE), Math.floor(my / TILE));
+          }}
           onMouseMove={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const mx = ((e.clientX - rect.left) / rect.width) * W;
@@ -274,10 +321,10 @@ export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode
             </div>
           );
         })}
-        {/* CEO-(Humano): label da presença do usuário */}
+        {/* CEO-(Humano): label segue o avatar (click-to-walk) */}
         <div
-          className="absolute -translate-x-1/2 -translate-y-full text-[8px] font-mono text-[#a78bfa] pointer-events-none whitespace-nowrap"
-          style={{ left: `${(CEO_SPAWN.cx * 100) / W}%`, top: `${((CEO_SPAWN.cy - 12) * 100) / H}%` }}
+          className="absolute -translate-x-1/2 -translate-y-full text-[8px] font-mono text-[#a78bfa] pointer-events-none whitespace-nowrap transition-all duration-100"
+          style={{ left: `${(ceoPx.cx * 100) / W}%`, top: `${((ceoPx.cy - 12) * 100) / H}%` }}
         >
           CEO (Humano)
         </div>
