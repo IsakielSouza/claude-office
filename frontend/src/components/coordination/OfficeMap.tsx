@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CoordAgent } from "./coordinationApi";
 
 // ── Camada 3, slice 2: mapa espacial estilo Gather (planta-baixa pixel-art).
@@ -8,7 +8,7 @@ import type { CoordAgent } from "./coordinationApi";
 // reaproveita planos de sala, paleta e o sprite 8x10. Os agentes vêm do ROSTER
 // real (cor por status). Movimento/A* e CEO-(Humano) = slice 3.
 
-const TILE = 8;
+export const TILE = 8;
 const COLS = 80;
 const ROWS = 44;
 
@@ -30,7 +30,7 @@ const PALETTE = {
 };
 
 // Planta F1 do mockup (salas + desks). É a "planta da empresa" (um andar só).
-const ROOMS = [
+export const ROOMS = [
   { x: 1, y: 1, w: 22, h: 13, label: "DEV BAY A" },
   { x: 24, y: 1, w: 22, h: 13, label: "DEV BAY B" },
   { x: 47, y: 1, w: 14, h: 13, label: "MEETING" },
@@ -49,6 +49,17 @@ const DESKS: [number, number][] = [
   [35, 18], [39, 18], [43, 18], [60, 18], [64, 18], [68, 18],
   [4, 33], [8, 33], [12, 33], [27, 33], [31, 33], [35, 33], [39, 33], [43, 33],
 ];
+
+// Desks contidos em cada sala (índice alinhado a ROOMS). Só as salas COM desk
+// podem virar "sala de uma função" (sala = role) — #410.
+const ROOM_DESKS: [number, number][][] = ROOMS.map((r) =>
+  DESKS.filter(
+    ([dx, dy]) => dx > r.x && dx < r.x + r.w - 1 && dy > r.y && dy < r.y + r.h - 1,
+  ),
+);
+const ROOMS_WITH_DESKS: number[] = ROOMS.map((_, i) => i).filter(
+  (i) => ROOM_DESKS[i].length > 0,
+);
 
 const STATUS_COLOR: Record<string, string> = {
   busy: "#4ade80",
@@ -145,6 +156,38 @@ interface Placed {
   cy: number;
 }
 
+// Posiciona os agentes na SALA da sua FUNÇÃO (sala = role), não por índice (#410).
+// Roles ordenadas com o MESMO sort dos cards do /console (buildRooms/localeCompare)
+// → mapeadas 1:1 às salas com desk, em ordem. Cada agente senta num desk da sala
+// da sua role. roomRole devolve o rótulo (role) de cada sala usada, p/ a legenda.
+export function placeByRole(agents: CoordAgent[]): {
+  placed: Placed[];
+  roomRole: Map<number, string>;
+} {
+  const roles = [...new Set(agents.map((a) => a.role))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const roleRoom = new Map<string, number>();
+  const roomRole = new Map<number, string>();
+  roles.forEach((role, i) => {
+    if (i < ROOMS_WITH_DESKS.length) {
+      const roomIdx = ROOMS_WITH_DESKS[i];
+      roleRoom.set(role, roomIdx);
+      roomRole.set(roomIdx, role);
+    }
+  });
+  const seatByRole = new Map<string, number>();
+  const placed = agents.map((agent, i) => {
+    const roomIdx = roleRoom.get(agent.role);
+    const desks = roomIdx != null ? ROOM_DESKS[roomIdx] : DESKS;
+    const seat = seatByRole.get(agent.role) ?? 0;
+    seatByRole.set(agent.role, seat + 1);
+    const [dx, dy] = desks[seat % desks.length] ?? DESKS[i % DESKS.length];
+    return { agent, cx: dx * TILE + TILE / 2 + 4, cy: dy * TILE + TILE / 2 + 12 };
+  });
+  return { placed, roomRole };
+}
+
 export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode {
   const bgRef = useRef<HTMLCanvasElement>(null);
   const fgRef = useRef<HTMLCanvasElement>(null);
@@ -160,11 +203,8 @@ export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode
     drawFloor(ctx);
   }, []);
 
-  // posiciona os agentes do roster nos desks (cor por status)
-  const placed: Placed[] = agents.map((agent, i) => {
-    const [dx, dy] = DESKS[i % DESKS.length];
-    return { agent, cx: dx * TILE + TILE / 2 + 4, cy: dy * TILE + TILE / 2 + 12 };
-  });
+  // posiciona os agentes na sala da sua função (sala = role); cor por status
+  const { placed, roomRole } = useMemo(() => placeByRole(agents), [agents]);
 
   useEffect(() => {
     const c = fgRef.current;
@@ -215,19 +255,25 @@ export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode
           }}
           onMouseLeave={() => setHover(null)}
         />
-        {/* rótulos das salas */}
-        {ROOMS.map((r) => (
-          <div
-            key={r.label}
-            className="absolute -translate-x-1/2 text-[8px] font-mono uppercase tracking-wide text-[#7e89a3] pointer-events-none whitespace-nowrap"
-            style={{
-              left: `${((r.x + r.w / 2) * TILE * 100) / W}%`,
-              top: `${(r.y * TILE * 100) / H + 1}%`,
-            }}
-          >
-            {r.label}
-          </div>
-        ))}
+        {/* rótulos das salas: sala COM função mostra o role (= cards do /console);
+            sala sem função fica com o rótulo genérico esmaecido */}
+        {ROOMS.map((r, i) => {
+          const role = roomRole.get(i);
+          return (
+            <div
+              key={r.label}
+              className={`absolute -translate-x-1/2 text-[8px] font-mono uppercase tracking-wide pointer-events-none whitespace-nowrap ${
+                role ? "text-[#9aa6c4] font-bold" : "text-[#4b5573] opacity-50"
+              }`}
+              style={{
+                left: `${((r.x + r.w / 2) * TILE * 100) / W}%`,
+                top: `${(r.y * TILE * 100) / H + 1}%`,
+              }}
+            >
+              {role ?? r.label}
+            </div>
+          );
+        })}
         {/* CEO-(Humano): label da presença do usuário */}
         <div
           className="absolute -translate-x-1/2 -translate-y-full text-[8px] font-mono text-[#a78bfa] pointer-events-none whitespace-nowrap"
