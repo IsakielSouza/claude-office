@@ -272,6 +272,7 @@ async def create_request(
 # (ON CONFLICT) no roster `agents`. É a base do botão "Contratar"; o hire-executor
 # (agents-ia#417, lado coletor) faz o mesmo via decisão HITL. (EPIC #395)
 _AGENT_MODES = ("on-demand", "persistent-24-7")
+_VALID_MODELS = {"opus", "sonnet", "haiku"}
 
 
 class CreateAgentBody(BaseModel):
@@ -279,14 +280,16 @@ class CreateAgentBody(BaseModel):
     role: str
     projetos: list[str] = []
     mode: str = "on-demand"
+    model: str | None = None
 
 
 _INSERT_AGENT_SQL = text("""
-INSERT INTO agents (nome, role, projetos, mode, status)
-VALUES (:nome, :role, :projetos, :mode, 'offline')
+INSERT INTO agents (nome, role, projetos, mode, model, status)
+VALUES (:nome, :role, :projetos, :mode, :model, 'offline')
 ON CONFLICT (nome) DO UPDATE
-   SET role = EXCLUDED.role, projetos = EXCLUDED.projetos, mode = EXCLUDED.mode
-RETURNING nome, role, projetos, mode, status, contratado_em, last_active_at
+   SET role = EXCLUDED.role, projetos = EXCLUDED.projetos, mode = EXCLUDED.mode,
+       model = EXCLUDED.model
+RETURNING nome, role, projetos, mode, model, status, contratado_em, last_active_at
 """).bindparams(bindparam("projetos", type_=ARRAY(Text)))
 
 
@@ -304,11 +307,17 @@ async def create_agent(
             status_code=422,
             detail={"error": "invalid_mode", "allowed": list(_AGENT_MODES)},
         )
+    if body.model and body.model not in _VALID_MODELS:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "invalid_model", "allowed": list(_VALID_MODELS)},
+        )
     projetos = [p.strip() for p in body.projetos if p.strip()]
     try:
         result = await db.execute(
             _INSERT_AGENT_SQL,
-            {"nome": nome, "role": role, "projetos": projetos, "mode": body.mode},
+            {"nome": nome, "role": role, "projetos": projetos, "mode": body.mode,
+             "model": body.model or None},
         )
         row = result.mappings().one()
         await db.commit()
@@ -448,7 +457,7 @@ async def dashboard(
 # NB: o join active_work.agent = agents.nome depende da padronização do nome de
 # mesa (follow-up); claim com nome divergente não conta como 'busy'.
 _AGENTS_SQL = text("""
-SELECT a.nome, a.role, a.projetos, a.mode,
+SELECT a.nome, a.role, a.projetos, a.mode, a.model,
        a.contratado_em, a.last_active_at,
        a.cron_expr, a.enabled, a.archived_at,
        CASE WHEN COALESCE(aw.cnt, 0) > 0 THEN 'busy' ELSE a.status END AS status,
@@ -497,6 +506,7 @@ class PatchAgentBody(BaseModel):
     mode: str | None = None
     cron_expr: str | None = None
     enabled: bool | None = None
+    model: str | None = None
 
 
 @router.patch("/agents/{nome}", dependencies=[Depends(enforce_write_rate_limit)])
@@ -524,18 +534,23 @@ async def patch_agent(
         params["cron_expr"] = body.cron_expr or None
     if body.enabled is not None:
         sets.append("enabled = :enabled"); params["enabled"] = body.enabled
+    if "model" in body.model_fields_set:
+        if body.model is not None and body.model != "" and body.model not in _VALID_MODELS:
+            raise HTTPException(status_code=422,
+                detail={"error": "invalid_model", "allowed": list(_VALID_MODELS)})
+        sets.append("model = :model"); params["model"] = body.model or None
     if not sets:
         raise HTTPException(status_code=422, detail={"error": "empty_patch"})
     if body.projetos is not None:
         sql = text(
             f"UPDATE agents SET {', '.join(sets)} WHERE nome = :nome "
-            "RETURNING nome, role, projetos, mode, status, cron_expr, enabled, "
+            "RETURNING nome, role, projetos, mode, model, status, cron_expr, enabled, "
             "archived_at, contratado_em, last_active_at"
         ).bindparams(bindparam("projetos", type_=ARRAY(Text)))
     else:
         sql = text(
             f"UPDATE agents SET {', '.join(sets)} WHERE nome = :nome "
-            "RETURNING nome, role, projetos, mode, status, cron_expr, enabled, "
+            "RETURNING nome, role, projetos, mode, model, status, cron_expr, enabled, "
             "archived_at, contratado_em, last_active_at"
         )
     try:
@@ -551,7 +566,7 @@ async def patch_agent(
 
 
 # ── archive / restore ─────────────────────────────────────────────────────────
-_ARCHIVE_RETURN = ("RETURNING nome, role, projetos, mode, status, cron_expr, "
+_ARCHIVE_RETURN = ("RETURNING nome, role, projetos, mode, model, status, cron_expr, "
                    "enabled, archived_at, contratado_em, last_active_at")
 
 

@@ -325,6 +325,22 @@ class TestCoordinationLive:
         finally:
             _delete_agent(nome)
 
+    def test_patch_agent_model_valid_and_invalid(self) -> None:
+        nome = "__TEST_MODEL__"
+        client = TestClient(app)
+        try:
+            client.post("/api/v1/coordination/agents", json={"nome": nome, "role": "devops"})
+            r = client.patch(f"/api/v1/coordination/agents/{nome}", json={"model": "opus"})
+            assert r.status_code == 200, r.text
+            assert r.json()["agent"]["model"] == "opus"
+            bad = client.patch(f"/api/v1/coordination/agents/{nome}", json={"model": "gpt-5"})
+            assert bad.status_code == 422
+            # null volta pro Default
+            r2 = client.patch(f"/api/v1/coordination/agents/{nome}", json={"model": None})
+            assert r2.status_code == 200 and r2.json()["agent"]["model"] is None
+        finally:
+            _delete_agent(nome)
+
     def test_delete_requires_archived_first(self) -> None:
         nome = "__TEST_DEL__"
         client = TestClient(app)
