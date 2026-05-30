@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { fetchAgents, type CoordAgent } from "@/components/coordination/coordinationApi";
 import { AgendaEditor } from "@/components/coordination/AgendaEditor";
 import { AddAgendaRow } from "@/components/coordination/AddAgendaRow";
+import { CoordinationNav } from "@/components/coordination/CoordinationNav";
 import { partitionAgendas } from "@/utils/agendas";
 
 export default function AgendasPage(): React.ReactNode {
@@ -30,6 +31,7 @@ export default function AgendasPage(): React.ReactNode {
 
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-4">
+      <CoordinationNav />
       <h1 className="text-xl font-semibold">Agendas dos agentes</h1>
       <p className="text-sm text-neutral-400">
         Edita os horários de execução (cron). As mudanças entram no crontab em até ~5 min (reconcile).
