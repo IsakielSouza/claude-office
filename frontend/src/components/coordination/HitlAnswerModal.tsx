@@ -89,9 +89,16 @@ export default function HitlAnswerModal({ prompt, onClose, onSubmit }: Props) {
     );
 
   return (
-    <Modal isOpen={prompt !== null} onClose={onClose} title={prompt.question} footer={footer}>
+    <Modal
+      isOpen={prompt !== null}
+      onClose={onClose}
+      title={prompt.question}
+      footer={footer}
+    >
       {prompt.context && (
-        <p className="mb-3 text-slate-400 whitespace-pre-wrap">{prompt.context}</p>
+        <p className="mb-3 text-slate-400 whitespace-pre-wrap">
+          {prompt.context}
+        </p>
       )}
       {prompt.issue_url && (
         <a
@@ -107,7 +114,10 @@ export default function HitlAnswerModal({ prompt, onClose, onSubmit }: Props) {
       {prompt.kind === "choice" && (
         <div className="flex flex-col gap-2">
           {(prompt.options ?? []).map((o) => (
-            <label key={o.key} className="flex items-center gap-2 cursor-pointer">
+            <label
+              key={o.key}
+              className="flex items-center gap-2 cursor-pointer"
+            >
               <input
                 type="radio"
                 name="hitl-choice"
@@ -126,7 +136,10 @@ export default function HitlAnswerModal({ prompt, onClose, onSubmit }: Props) {
       {prompt.kind === "multi" && (
         <div className="flex flex-col gap-2">
           {(prompt.options ?? []).map((o) => (
-            <label key={o.key} className="flex items-center gap-2 cursor-pointer">
+            <label
+              key={o.key}
+              className="flex items-center gap-2 cursor-pointer"
+            >
               <input
                 type="checkbox"
                 checked={multi.includes(o.key)}

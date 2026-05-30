@@ -110,7 +110,9 @@ export async function createTask(input: {
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
-      const j = (await res.json()) as { detail?: { message?: string; error?: string } };
+      const j = (await res.json()) as {
+        detail?: { message?: string; error?: string };
+      };
       msg = j?.detail?.message ?? j?.detail?.error ?? msg;
     } catch {
       /* mantém msg padrão */
@@ -152,7 +154,9 @@ export async function createRequest(input: {
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
-      const j = (await res.json()) as { detail?: { message?: string; error?: string } };
+      const j = (await res.json()) as {
+        detail?: { message?: string; error?: string };
+      };
       msg = j?.detail?.message ?? j?.detail?.error ?? msg;
     } catch {
       /* mantém msg padrão */
@@ -182,7 +186,9 @@ export async function createAgent(input: {
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
-      const j = (await res.json()) as { detail?: { message?: string; error?: string } };
+      const j = (await res.json()) as {
+        detail?: { message?: string; error?: string };
+      };
       msg = j?.detail?.message ?? j?.detail?.error ?? msg;
     } catch {
       /* mantém msg padrão */
@@ -249,7 +255,11 @@ export async function answerHitl(
 
 // ── Mutações de agentes (PATCH / archive / restore / delete) ─────────────────
 
-async function mutate<T>(path: string, method: string, body?: unknown): Promise<T> {
+async function mutate<T>(
+  path: string,
+  method: string,
+  body?: unknown,
+): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: body ? { "Content-Type": "application/json" } : {},
@@ -259,9 +269,13 @@ async function mutate<T>(path: string, method: string, body?: unknown): Promise<
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
-      const j = (await res.json()) as { detail?: { error?: string; message?: string } };
+      const j = (await res.json()) as {
+        detail?: { error?: string; message?: string };
+      };
       msg = j?.detail?.error ?? j?.detail?.message ?? msg;
-    } catch { /* mantém */ }
+    } catch {
+      /* mantém */
+    }
     throw new Error(msg);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
@@ -269,7 +283,14 @@ async function mutate<T>(path: string, method: string, body?: unknown): Promise<
 
 export const patchAgent = (
   nome: string,
-  patch: Partial<{ role: string; projetos: string[]; mode: string; cron_expr: string | null; enabled: boolean; model: string | null }>,
+  patch: Partial<{
+    role: string;
+    projetos: string[];
+    mode: string;
+    cron_expr: string | null;
+    enabled: boolean;
+    model: string | null;
+  }>,
 ): Promise<{ agent: CoordAgent }> =>
   mutate(`/agents/${encodeURIComponent(nome)}`, "PATCH", patch);
 

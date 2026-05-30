@@ -22,13 +22,23 @@ export function AddAgendaRow({
     return (
       <div className="flex items-center justify-between rounded-lg border border-dashed border-neutral-700 px-4 py-2 text-sm">
         <span className="text-neutral-300">
-          {agent.nome} <span className="text-neutral-500">({agent.role})</span> — sem agenda
+          {agent.nome} <span className="text-neutral-500">({agent.role})</span>{" "}
+          — sem agenda
         </span>
-        <button onClick={() => setOpen(true)} className="flex items-center gap-1 text-blue-400">
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1 text-blue-400"
+        >
           <CalendarPlus size={14} /> criar agenda
         </button>
       </div>
     );
   }
-  return <AgendaEditor agent={agent} duplicateRole={duplicateRole} onSaved={onSaved} />;
+  return (
+    <AgendaEditor
+      agent={agent}
+      duplicateRole={duplicateRole}
+      onSaved={onSaved}
+    />
+  );
 }

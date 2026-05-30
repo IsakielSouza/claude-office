@@ -71,7 +71,9 @@ describe("placeByRole (sala = role, #410)", () => {
     expect(roomOfPoint(front[0].cx, front[0].cy)).toBe(
       roomOfPoint(front[1].cx, front[1].cy),
     );
-    expect(front[0].cx !== front[1].cx || front[0].cy !== front[1].cy).toBe(true);
+    expect(front[0].cx !== front[1].cx || front[0].cy !== front[1].cy).toBe(
+      true,
+    );
   });
 
   it("roles ordenadas alfabeticamente (mesmo sort dos cards do /console)", () => {

@@ -154,8 +154,17 @@ async def _list_open_issues() -> list[dict[str, Any]]:
     """Issues abertas do agents-ia p/ dedup (best-effort: [] se gh falhar)."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "gh", "issue", "list", "--repo", _AGENTS_IA_REPO,
-            "--state", "open", "--limit", "1000", "--json", "title,url",
+            "gh",
+            "issue",
+            "list",
+            "--repo",
+            _AGENTS_IA_REPO,
+            "--state",
+            "open",
+            "--limit",
+            "1000",
+            "--json",
+            "title,url",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -179,9 +188,15 @@ async def create_task(body: CreateTaskBody) -> dict[str, Any]:
     if dup:
         return {"url": dup, "deduped": True}
     args = [
-        "gh", "issue", "create", "--repo", _AGENTS_IA_REPO,
-        "--title", full_title,
-        "--body", body.body.strip() or "(criada pelo cockpit)",
+        "gh",
+        "issue",
+        "create",
+        "--repo",
+        _AGENTS_IA_REPO,
+        "--title",
+        full_title,
+        "--body",
+        body.body.strip() or "(criada pelo cockpit)",
     ]
     for lb in body.labels:
         if lb.strip():
@@ -316,8 +331,13 @@ async def create_agent(
     try:
         result = await db.execute(
             _INSERT_AGENT_SQL,
-            {"nome": nome, "role": role, "projetos": projetos, "mode": body.mode,
-             "model": body.model or None},
+            {
+                "nome": nome,
+                "role": role,
+                "projetos": projetos,
+                "mode": body.mode,
+                "model": body.model or None,
+            },
         )
         row = result.mappings().one()
         await db.commit()
@@ -482,9 +502,7 @@ async def list_agents(
     include_archived: bool = False,
 ) -> dict[str, Any]:
     try:
-        result = await db.execute(
-            _AGENTS_SQL, {"role": role, "include_archived": include_archived}
-        )
+        result = await db.execute(_AGENTS_SQL, {"role": role, "include_archived": include_archived})
         return {"agents": _row_dicts(result)}
     except (OperationalError, InterfaceError, DBAPIError) as exc:
         logger.warning("coordination /agents unavailable: %s", exc)
@@ -518,27 +536,33 @@ async def patch_agent(
     sets: list[str] = []
     params: dict[str, Any] = {"nome": nome}
     if body.role is not None:
-        sets.append("role = :role"); params["role"] = body.role.strip()
+        sets.append("role = :role")
+        params["role"] = body.role.strip()
     if body.projetos is not None:
         sets.append("projetos = :projetos")
         params["projetos"] = [p.strip() for p in body.projetos if p.strip()]
     if body.mode is not None:
         if body.mode not in _AGENT_MODES:
-            raise HTTPException(status_code=422,
-                detail={"error": "invalid_mode", "allowed": list(_AGENT_MODES)})
-        sets.append("mode = :mode"); params["mode"] = body.mode
+            raise HTTPException(
+                status_code=422, detail={"error": "invalid_mode", "allowed": list(_AGENT_MODES)}
+            )
+        sets.append("mode = :mode")
+        params["mode"] = body.mode
     if body.cron_expr is not None:
         if body.cron_expr and not _valid_cron(body.cron_expr):
             raise HTTPException(status_code=422, detail={"error": "invalid_cron_expr"})
         sets.append("cron_expr = :cron_expr")
         params["cron_expr"] = body.cron_expr or None
     if body.enabled is not None:
-        sets.append("enabled = :enabled"); params["enabled"] = body.enabled
+        sets.append("enabled = :enabled")
+        params["enabled"] = body.enabled
     if "model" in body.model_fields_set:
         if body.model is not None and body.model != "" and body.model not in _VALID_MODELS:
-            raise HTTPException(status_code=422,
-                detail={"error": "invalid_model", "allowed": list(_VALID_MODELS)})
-        sets.append("model = :model"); params["model"] = body.model or None
+            raise HTTPException(
+                status_code=422, detail={"error": "invalid_model", "allowed": list(_VALID_MODELS)}
+            )
+        sets.append("model = :model")
+        params["model"] = body.model or None
     if not sets:
         raise HTTPException(status_code=422, detail={"error": "empty_patch"})
     if body.projetos is not None:
@@ -566,8 +590,10 @@ async def patch_agent(
 
 
 # ── archive / restore ─────────────────────────────────────────────────────────
-_ARCHIVE_RETURN = ("RETURNING nome, role, projetos, mode, model, status, cron_expr, "
-                   "enabled, archived_at, contratado_em, last_active_at")
+_ARCHIVE_RETURN = (
+    "RETURNING nome, role, projetos, mode, model, status, cron_expr, "
+    "enabled, archived_at, contratado_em, last_active_at"
+)
 
 
 @router.post("/agents/{nome}/archive", dependencies=[Depends(enforce_write_rate_limit)])
@@ -618,16 +644,13 @@ async def restore_agent(
 
 
 # ── DELETE /agents/{nome} (purge só de arquivado) ─────────────────────────────
-@router.delete("/agents/{nome}", status_code=204,
-               dependencies=[Depends(enforce_write_rate_limit)])
+@router.delete("/agents/{nome}", status_code=204, dependencies=[Depends(enforce_write_rate_limit)])
 async def delete_agent(
     nome: str,
     db: Annotated[AsyncSession, Depends(get_coordination_db)],
 ) -> None:
     try:
-        chk = await db.execute(
-            text("SELECT archived_at FROM agents WHERE nome = :n"), {"n": nome}
-        )
+        chk = await db.execute(text("SELECT archived_at FROM agents WHERE nome = :n"), {"n": nome})
         row = chk.first()
         if row is None:
             raise HTTPException(status_code=404, detail={"error": "agent_not_found"})

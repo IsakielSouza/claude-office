@@ -25,7 +25,9 @@ export function HireAgentForm({
   const [nome, setNome] = useState("");
   const [role, setRole] = useState("");
   const [projetos, setProjetos] = useState("");
-  const [mode, setMode] = useState<"on-demand" | "persistent-24-7">("on-demand");
+  const [mode, setMode] = useState<"on-demand" | "persistent-24-7">(
+    "on-demand",
+  );
   const [model, setModel] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [okMsg, setOkMsg] = useState<string | null>(null);
@@ -75,7 +77,9 @@ export function HireAgentForm({
   return (
     <div className="border border-slate-800 rounded-lg p-3 bg-slate-900/40 space-y-2 w-full">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-bold text-slate-200">Contratar agente</span>
+        <span className="text-sm font-bold text-slate-200">
+          Contratar agente
+        </span>
         <button
           onClick={() => setOpen(false)}
           className="text-slate-500 hover:text-slate-300"
@@ -112,8 +116,16 @@ export function HireAgentForm({
           <option value="on-demand">on-demand</option>
           <option value="persistent-24-7">24/7</option>
         </select>
-        <select value={model} onChange={(e) => setModel(e.target.value)} className="bg-neutral-900 rounded px-2 py-1 text-sm">
-          {MODEL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <select
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          className="bg-neutral-900 rounded px-2 py-1 text-sm"
+        >
+          {MODEL_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
       </div>
       <div className="flex items-center gap-3">

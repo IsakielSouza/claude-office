@@ -3,8 +3,9 @@ import { timesToCron, intervalToCron, cronToEditor } from "../src/utils/cron";
 
 describe("timesToCron", () => {
   it("gera lista de horas no mesmo minuto", () => {
-    expect(timesToCron(["08:00", "12:00", "15:00", "18:00", "22:00", "23:00"]))
-      .toBe("0 8,12,15,18,22,23 * * *");
+    expect(
+      timesToCron(["08:00", "12:00", "15:00", "18:00", "22:00", "23:00"]),
+    ).toBe("0 8,12,15,18,22,23 * * *");
   });
 });
 
@@ -16,12 +17,19 @@ describe("intervalToCron", () => {
 
 describe("cronToEditor", () => {
   it("reconhece intervalo", () => {
-    expect(cronToEditor("0,15,30,45 7-23 * * *"))
-      .toEqual({ mode: "interval", everyMin: 15, startHour: 7, endHour: 23 });
+    expect(cronToEditor("0,15,30,45 7-23 * * *")).toEqual({
+      mode: "interval",
+      everyMin: 15,
+      startHour: 7,
+      endHour: 23,
+    });
   });
   it("reconhece horários fixos", () => {
-    expect(cronToEditor("0 8,12,15,18,23 * * *"))
-      .toEqual({ mode: "times", minute: 0, hours: [8, 12, 15, 18, 23] });
+    expect(cronToEditor("0 8,12,15,18,23 * * *")).toEqual({
+      mode: "times",
+      minute: 0,
+      hours: [8, 12, 15, 18, 23],
+    });
   });
   it("cai em raw para expressões fora do padrão", () => {
     expect(cronToEditor("*/5 * * * *")).toEqual({ mode: "raw" });

@@ -55,9 +55,7 @@ export default function DashboardPage(): React.ReactNode {
 
   const maxBucket = useMemo(
     () =>
-      data
-        ? Math.max(1, ...data.closedByPeriod.buckets.map((b) => b.n))
-        : 1,
+      data ? Math.max(1, ...data.closedByPeriod.buckets.map((b) => b.n)) : 1,
     [data],
   );
 
@@ -111,7 +109,9 @@ export default function DashboardPage(): React.ReactNode {
           Erro ao carregar: {error}
         </div>
       )}
-      {loading && !data && <p className="text-slate-500 text-sm">Carregando…</p>}
+      {loading && !data && (
+        <p className="text-slate-500 text-sm">Carregando…</p>
+      )}
 
       {data && !unavailable && (
         <div className="flex flex-col gap-6">
@@ -141,14 +141,16 @@ export default function DashboardPage(): React.ReactNode {
                 value={data.database.activeClaims}
                 accent="text-amber-400"
               />
-              {(["success", "error", "timeout", "running"] as const).map((st) => (
-                <MetricCard
-                  key={st}
-                  label={`runs ${st}`}
-                  value={data.database.runsByStatus[st] ?? 0}
-                  accent={RUN_COLORS[st]}
-                />
-              ))}
+              {(["success", "error", "timeout", "running"] as const).map(
+                (st) => (
+                  <MetricCard
+                    key={st}
+                    label={`runs ${st}`}
+                    value={data.database.runsByStatus[st] ?? 0}
+                    accent={RUN_COLORS[st]}
+                  />
+                ),
+              )}
             </div>
           </section>
 
@@ -195,7 +197,9 @@ export default function DashboardPage(): React.ReactNode {
                   </div>
                 ))}
                 {data.openByProject.length === 0 && (
-                  <div className="px-3 py-2 text-slate-600 text-sm">Sem dados.</div>
+                  <div className="px-3 py-2 text-slate-600 text-sm">
+                    Sem dados.
+                  </div>
                 )}
               </div>
             </section>
@@ -232,7 +236,9 @@ export default function DashboardPage(): React.ReactNode {
                   </div>
                 ))}
                 {data.health.length === 0 && (
-                  <div className="px-3 py-2 text-slate-600 text-sm">Sem dados.</div>
+                  <div className="px-3 py-2 text-slate-600 text-sm">
+                    Sem dados.
+                  </div>
                 )}
               </div>
             </section>

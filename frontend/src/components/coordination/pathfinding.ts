@@ -90,20 +90,28 @@ function key(x: number, y: number): number {
  * A* 4-direções. Retorna o caminho do `start` ao `goal` (inclusive) como lista de
  * tiles, ou `[]` se não houver caminho (ou se start/goal forem inandáveis).
  */
-export function findPath(walkable: boolean[][], start: Tile, goal: Tile): Tile[] {
+export function findPath(
+  walkable: boolean[][],
+  start: Tile,
+  goal: Tile,
+): Tile[] {
   const rows = walkable.length;
   const cols = rows > 0 ? walkable[0].length : 0;
   const inBounds = (x: number, y: number): boolean =>
     x >= 0 && x < cols && y >= 0 && y < rows;
-  const passable = (x: number, y: number): boolean => inBounds(x, y) && walkable[y][x];
+  const passable = (x: number, y: number): boolean =>
+    inBounds(x, y) && walkable[y][x];
 
   const [sx, sy] = start;
   const [gx, gy] = goal;
   if (!passable(sx, sy) || !passable(gx, gy)) return [];
   if (sx === gx && sy === gy) return [start];
 
-  const h = (x: number, y: number): number => Math.abs(x - gx) + Math.abs(y - gy);
-  const open: { x: number; y: number; f: number }[] = [{ x: sx, y: sy, f: h(sx, sy) }];
+  const h = (x: number, y: number): number =>
+    Math.abs(x - gx) + Math.abs(y - gy);
+  const open: { x: number; y: number; f: number }[] = [
+    { x: sx, y: sy, f: h(sx, sy) },
+  ];
   const gScore = new Map<number, number>([[key(sx, sy), 0]]);
   const cameFrom = new Map<number, number>();
 

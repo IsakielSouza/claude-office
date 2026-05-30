@@ -54,7 +54,9 @@ export default function AgentsPage(): React.ReactNode {
     }
   }, []);
 
-  useEffect(() => { void loadArchived(); }, [loadArchived]);
+  useEffect(() => {
+    void loadArchived();
+  }, [loadArchived]);
 
   async function reload(): Promise<void> {
     await Promise.all([refetch(), loadArchived()]);
@@ -100,7 +102,10 @@ export default function AgentsPage(): React.ReactNode {
       {data && !unavailable && (
         <div className="mb-3 space-y-2">
           <div className="flex flex-wrap gap-2">
-            <ConvocarAgentForm agents={data.agents} onCreated={() => void refetch()} />
+            <ConvocarAgentForm
+              agents={data.agents}
+              onCreated={() => void refetch()}
+            />
             <HireAgentForm onCreated={() => void refetch()} />
           </div>
         </div>
@@ -144,7 +149,11 @@ export default function AgentsPage(): React.ReactNode {
                 >
                   <td className="px-3 py-2 font-mono text-slate-200">
                     {a.nome}
-                    {a.model && <span className="ml-2 rounded bg-indigo-900 px-1.5 py-0.5 text-xs">{a.model}</span>}
+                    {a.model && (
+                      <span className="ml-2 rounded bg-indigo-900 px-1.5 py-0.5 text-xs">
+                        {a.model}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-slate-400">{a.role}</td>
                   <td className="px-3 py-2">
@@ -190,10 +199,16 @@ export default function AgentsPage(): React.ReactNode {
                         className="text-sm text-amber-400 text-left"
                         onClick={async () => {
                           if (!confirm(`Arquivar ${a.nome}?`)) return;
-                          try { await archiveAgent(a.nome); void reload(); }
-                          catch (e) { alert(e instanceof Error ? e.message : "erro"); }
+                          try {
+                            await archiveAgent(a.nome);
+                            void reload();
+                          } catch (e) {
+                            alert(e instanceof Error ? e.message : "erro");
+                          }
                         }}
-                      >arquivar</button>
+                      >
+                        arquivar
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -215,9 +230,13 @@ export default function AgentsPage(): React.ReactNode {
       {/* ── Arquivados ── */}
       {(archived.length > 0 || archivedErr) && (
         <div className="mt-6">
-          <h2 className="text-base font-semibold text-slate-400 mb-2">Arquivados</h2>
+          <h2 className="text-base font-semibold text-slate-400 mb-2">
+            Arquivados
+          </h2>
           {archivedErr && (
-            <div className="text-sm text-rose-400 mb-2">Erro ao carregar arquivados: {archivedErr}</div>
+            <div className="text-sm text-rose-400 mb-2">
+              Erro ao carregar arquivados: {archivedErr}
+            </div>
           )}
           <div className="overflow-x-auto border border-slate-800 rounded-lg">
             <table className="w-full text-sm">
@@ -233,29 +252,57 @@ export default function AgentsPage(): React.ReactNode {
               </thead>
               <tbody>
                 {archived.map((a) => (
-                  <tr key={a.nome} className="border-t border-slate-900 opacity-60 hover:opacity-100">
-                    <td className="px-3 py-2 font-mono text-slate-400">{a.nome}</td>
+                  <tr
+                    key={a.nome}
+                    className="border-t border-slate-900 opacity-60 hover:opacity-100"
+                  >
+                    <td className="px-3 py-2 font-mono text-slate-400">
+                      {a.nome}
+                    </td>
                     <td className="px-3 py-2 text-slate-500">{a.role}</td>
-                    <td className="px-3 py-2 text-slate-500">{a.mode === "persistent-24-7" ? "24/7" : "on-demand"}</td>
-                    <td className="px-3 py-2 text-slate-500">{a.projetos.length ? a.projetos.join(", ") : "—"}</td>
-                    <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{fmtTime(a.archived_at)}</td>
+                    <td className="px-3 py-2 text-slate-500">
+                      {a.mode === "persistent-24-7" ? "24/7" : "on-demand"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-500">
+                      {a.projetos.length ? a.projetos.join(", ") : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-500 whitespace-nowrap">
+                      {fmtTime(a.archived_at)}
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex gap-2">
                         <button
                           className="text-sm text-emerald-400"
                           onClick={async () => {
-                            try { await restoreAgent(a.nome); void reload(); }
-                            catch (e) { alert(e instanceof Error ? e.message : "erro"); }
+                            try {
+                              await restoreAgent(a.nome);
+                              void reload();
+                            } catch (e) {
+                              alert(e instanceof Error ? e.message : "erro");
+                            }
                           }}
-                        >reativar</button>
+                        >
+                          reativar
+                        </button>
                         <button
                           className="text-sm text-red-400"
                           onClick={async () => {
-                            if (!confirm(`Excluir DEFINITIVAMENTE ${a.nome}? Irreversível.`)) return;
-                            try { await deleteAgent(a.nome); void reload(); }
-                            catch (e) { alert(e instanceof Error ? e.message : "erro"); }
+                            if (
+                              !confirm(
+                                `Excluir DEFINITIVAMENTE ${a.nome}? Irreversível.`,
+                              )
+                            )
+                              return;
+                            try {
+                              await deleteAgent(a.nome);
+                              void reload();
+                            } catch (e) {
+                              alert(e instanceof Error ? e.message : "erro");
+                            }
                           }}
-                        >excluir de vez</button>
+                        >
+                          excluir de vez
+                        </button>
                       </div>
                     </td>
                   </tr>

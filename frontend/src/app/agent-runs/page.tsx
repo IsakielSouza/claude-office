@@ -97,7 +97,9 @@ export default function AgentRunsPage(): React.ReactNode {
           <RefreshCw size={14} /> Atualizar
         </button>
         {data && (
-          <span className="text-xs text-slate-500">{data.runs.length} runs</span>
+          <span className="text-xs text-slate-500">
+            {data.runs.length} runs
+          </span>
         )}
       </div>
 
@@ -111,7 +113,9 @@ export default function AgentRunsPage(): React.ReactNode {
           Erro ao carregar: {error}
         </div>
       )}
-      {loading && !data && <p className="text-slate-500 text-sm">Carregando…</p>}
+      {loading && !data && (
+        <p className="text-slate-500 text-sm">Carregando…</p>
+      )}
 
       {data && !unavailable && (
         <div className="overflow-x-auto border border-slate-800 rounded-lg">
@@ -152,11 +156,17 @@ export default function AgentRunsPage(): React.ReactNode {
                       <span className="text-slate-600">sem issue</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-slate-400">{r.project ?? "—"}</td>
+                  <td className="px-3 py-2 text-slate-400">
+                    {r.project ?? "—"}
+                  </td>
                   <td className="px-3 py-2 text-slate-400">{r.agent ?? "—"}</td>
-                  <td className="px-3 py-2 text-slate-500">{r.mechanism ?? "—"}</td>
+                  <td className="px-3 py-2 text-slate-500">
+                    {r.mechanism ?? "—"}
+                  </td>
                   <td className="px-3 py-2">
-                    <span className={STATUS_COLORS[r.status] ?? "text-slate-300"}>
+                    <span
+                      className={STATUS_COLORS[r.status] ?? "text-slate-300"}
+                    >
                       {r.status}
                     </span>
                   </td>
@@ -173,7 +183,10 @@ export default function AgentRunsPage(): React.ReactNode {
               ))}
               {data.runs.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-3 py-6 text-center text-slate-600">
+                  <td
+                    colSpan={8}
+                    className="px-3 py-6 text-center text-slate-600"
+                  >
                     Nenhum run encontrado.
                   </td>
                 </tr>

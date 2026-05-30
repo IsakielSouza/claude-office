@@ -178,7 +178,9 @@ export default function TasksPage(): React.ReactNode {
           Erro ao carregar: {error}
         </div>
       )}
-      {loading && !data && <p className="text-slate-500 text-sm">Carregando…</p>}
+      {loading && !data && (
+        <p className="text-slate-500 text-sm">Carregando…</p>
+      )}
 
       {data && !unavailable && (
         <div className="overflow-x-auto border border-slate-800 rounded-lg">
@@ -203,7 +205,8 @@ export default function TasksPage(): React.ReactNode {
                     {t.number}
                   </td>
                   <td className="px-3 py-2 max-w-md truncate">
-                    {(promptsBySourceRef.get(t.source_ref)?.length ?? 0) > 0 && (
+                    {(promptsBySourceRef.get(t.source_ref)?.length ?? 0) >
+                      0 && (
                       <button
                         onClick={() => {
                           const p0 = promptsBySourceRef.get(t.source_ref)?.[0];
@@ -230,16 +233,24 @@ export default function TasksPage(): React.ReactNode {
                   <td className="px-3 py-2">
                     <span
                       className={
-                        t.state === "OPEN" ? "text-emerald-400" : "text-slate-500"
+                        t.state === "OPEN"
+                          ? "text-emerald-400"
+                          : "text-slate-500"
                       }
                     >
                       {t.state ?? "—"}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-slate-400">{t.project ?? "—"}</td>
+                  <td className="px-3 py-2 text-slate-400">
+                    {t.project ?? "—"}
+                  </td>
                   <td className="px-3 py-2">
                     {t.claim_status ? (
-                      <span className={CLAIM_COLORS[t.claim_status] ?? "text-slate-300"}>
+                      <span
+                        className={
+                          CLAIM_COLORS[t.claim_status] ?? "text-slate-300"
+                        }
+                      >
                         {t.claim_status}
                         {t.claim_agent ? ` (${t.claim_agent})` : ""}
                       </span>
@@ -249,7 +260,9 @@ export default function TasksPage(): React.ReactNode {
                   </td>
                   <td className="px-3 py-2">
                     {t.run_status ? (
-                      <span className={RUN_COLORS[t.run_status] ?? "text-slate-300"}>
+                      <span
+                        className={RUN_COLORS[t.run_status] ?? "text-slate-300"}
+                      >
                         {t.run_status}
                       </span>
                     ) : (
@@ -260,7 +273,10 @@ export default function TasksPage(): React.ReactNode {
               ))}
               {displayedTasks.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-slate-600">
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-slate-600"
+                  >
                     {onlyWaiting
                       ? "Nenhuma task aguardando sua resposta."
                       : "Nenhuma task encontrada."}

@@ -150,9 +150,7 @@ class TestCoordinationLive:
                 json={"answer": True, "answered_by": "test"},
             )
             assert ok.status_code == 200
-            dup = client.post(
-                f"/api/v1/coordination/hitl/{pid}/answer", json={"answer": False}
-            )
+            dup = client.post(f"/api/v1/coordination/hitl/{pid}/answer", json={"answer": False})
             assert dup.status_code == 409
         finally:
             _delete_prompt(pid)
@@ -173,8 +171,7 @@ class TestCoordinationLive:
         client = TestClient(app)
         r = client.post(
             "/api/v1/coordination/requests",
-            json={"to_role": "dev-front", "kind": "work",
-                  "payload": {"motivo": "teste e2e"}},
+            json={"to_role": "dev-front", "kind": "work", "payload": {"motivo": "teste e2e"}},
         )
         assert r.status_code == 201, r.text
         req = r.json()["request"]
@@ -219,8 +216,12 @@ class TestCoordinationLive:
         try:
             r = client.post(
                 "/api/v1/coordination/agents",
-                json={"nome": nome, "role": "__test__",
-                      "projetos": ["hmtrack-front"], "mode": "on-demand"},
+                json={
+                    "nome": nome,
+                    "role": "__test__",
+                    "projetos": ["hmtrack-front"],
+                    "mode": "on-demand",
+                },
             )
             assert r.status_code == 201, r.text
             ag = r.json()["agent"]
@@ -247,9 +248,7 @@ class TestCoordinationLive:
 
     def test_create_agent_requires_nome_and_role(self) -> None:
         client = TestClient(app)
-        r = client.post(
-            "/api/v1/coordination/agents", json={"nome": "  ", "role": "dba"}
-        )
+        r = client.post("/api/v1/coordination/agents", json={"nome": "  ", "role": "dba"})
         assert r.status_code == 422
 
     def test_get_agents_exposes_schedule_fields(self) -> None:
@@ -271,11 +270,11 @@ class TestCoordinationLive:
         nome = "__TEST_PATCH__"
         client = TestClient(app)
         try:
-            client.post("/api/v1/coordination/agents",
-                        json={"nome": nome, "role": "devops"})
-            r = client.patch(f"/api/v1/coordination/agents/{nome}",
-                             json={"cron_expr": "0 8,12,15,18,22,23 * * *",
-                                   "enabled": False})
+            client.post("/api/v1/coordination/agents", json={"nome": nome, "role": "devops"})
+            r = client.patch(
+                f"/api/v1/coordination/agents/{nome}",
+                json={"cron_expr": "0 8,12,15,18,22,23 * * *", "enabled": False},
+            )
             assert r.status_code == 200, r.text
             ag = r.json()["agent"]
             assert ag["cron_expr"] == "0 8,12,15,18,22,23 * * *"
@@ -287,26 +286,22 @@ class TestCoordinationLive:
         nome = "__TEST_PATCH2__"
         client = TestClient(app)
         try:
-            client.post("/api/v1/coordination/agents",
-                        json={"nome": nome, "role": "devops"})
-            r = client.patch(f"/api/v1/coordination/agents/{nome}",
-                             json={"cron_expr": "0 8 * *"})
+            client.post("/api/v1/coordination/agents", json={"nome": nome, "role": "devops"})
+            r = client.patch(f"/api/v1/coordination/agents/{nome}", json={"cron_expr": "0 8 * *"})
             assert r.status_code == 422
         finally:
             _delete_agent(nome)
 
     def test_patch_agent_404(self) -> None:
         client = TestClient(app)
-        r = client.patch("/api/v1/coordination/agents/__nao_existe__",
-                         json={"enabled": True})
+        r = client.patch("/api/v1/coordination/agents/__nao_existe__", json={"enabled": True})
         assert r.status_code == 404
 
     def test_archive_and_restore_agent(self) -> None:
         nome = "__TEST_ARCH__"
         client = TestClient(app)
         try:
-            client.post("/api/v1/coordination/agents",
-                        json={"nome": nome, "role": "__test__"})
+            client.post("/api/v1/coordination/agents", json={"nome": nome, "role": "__test__"})
             r = client.post(f"/api/v1/coordination/agents/{nome}/archive")
             assert r.status_code == 200, r.text
             assert r.json()["agent"]["archived_at"] is not None
@@ -314,9 +309,7 @@ class TestCoordinationLive:
             base = client.get("/api/v1/coordination/agents").json()["agents"]
             assert all(a["nome"] != nome for a in base)
             # aparece com include_archived
-            arch = client.get(
-                "/api/v1/coordination/agents?include_archived=true"
-            ).json()["agents"]
+            arch = client.get("/api/v1/coordination/agents?include_archived=true").json()["agents"]
             assert any(a["nome"] == nome for a in arch)
             # restore
             r2 = client.post(f"/api/v1/coordination/agents/{nome}/restore")
@@ -345,21 +338,14 @@ class TestCoordinationLive:
         nome = "__TEST_DEL__"
         client = TestClient(app)
         try:
-            client.post("/api/v1/coordination/agents",
-                        json={"nome": nome, "role": "__test__"})
+            client.post("/api/v1/coordination/agents", json={"nome": nome, "role": "__test__"})
             # ativo → 409
-            assert client.delete(
-                f"/api/v1/coordination/agents/{nome}"
-            ).status_code == 409
+            assert client.delete(f"/api/v1/coordination/agents/{nome}").status_code == 409
             # arquiva → delete OK
             client.post(f"/api/v1/coordination/agents/{nome}/archive")
-            assert client.delete(
-                f"/api/v1/coordination/agents/{nome}"
-            ).status_code == 204
+            assert client.delete(f"/api/v1/coordination/agents/{nome}").status_code == 204
             # sumiu de vez
-            arch = client.get(
-                "/api/v1/coordination/agents?include_archived=true"
-            ).json()["agents"]
+            arch = client.get("/api/v1/coordination/agents?include_archived=true").json()["agents"]
             assert all(a["nome"] != nome for a in arch)
         finally:
             _delete_agent(nome)
@@ -372,9 +358,7 @@ def test_create_request_degrade_503_when_db_down() -> None:
     app.dependency_overrides[get_coordination_db] = _boom
     try:
         client = TestClient(app)
-        r = client.post(
-            "/api/v1/coordination/requests", json={"to_role": "dba"}
-        )
+        r = client.post("/api/v1/coordination/requests", json={"to_role": "dba"})
         assert r.status_code == 503
     finally:
         app.dependency_overrides.pop(get_coordination_db, None)
@@ -422,9 +406,7 @@ def test_coordination_version_changes_on_request() -> None:
     v1 = _aio.run(current_version())
     assert v1 is not None
     client = TestClient(app)
-    r = client.post(
-        "/api/v1/coordination/requests", json={"to_role": "dev-front", "kind": "work"}
-    )
+    r = client.post("/api/v1/coordination/requests", json={"to_role": "dev-front", "kind": "work"})
     rid = r.json()["request"]["id"]
     try:
         v2 = _aio.run(current_version())

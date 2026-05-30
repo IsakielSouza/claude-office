@@ -17,7 +17,11 @@ export function timesToCron(times: string[]): string {
 }
 
 /** intervalo de N min dentro de [startHour, endHour]. N deve dividir 60. */
-export function intervalToCron(everyMin: number, startHour: number, endHour: number): string {
+export function intervalToCron(
+  everyMin: number,
+  startHour: number,
+  endHour: number,
+): string {
   const mins: number[] = [];
   for (let m = 0; m < 60; m += everyMin) mins.push(m);
   return `${mins.join(",")} ${startHour}-${endHour} * * *`;

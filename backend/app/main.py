@@ -327,8 +327,6 @@ async def websocket_room(websocket: WebSocket, room_id: str) -> None:
         await manager.disconnect_room(websocket, room_id)
 
 
-
-
 def _safe_static_path(requested_path: str) -> Path | None:
     """Resolve a static file path and verify it stays within STATIC_DIR.
 

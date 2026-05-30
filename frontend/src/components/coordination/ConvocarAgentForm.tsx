@@ -72,7 +72,9 @@ export function ConvocarAgentForm({
   return (
     <div className="border border-slate-800 rounded-lg p-3 bg-slate-900/40 space-y-2 w-full">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-bold text-slate-200">Convocar agente</span>
+        <span className="text-sm font-bold text-slate-200">
+          Convocar agente
+        </span>
         <button
           onClick={() => setOpen(false)}
           className="text-slate-500 hover:text-slate-300"

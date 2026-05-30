@@ -42,7 +42,8 @@ function buildRooms(agents: CoordAgent[]): Room[] {
     .map(([role, list]) => {
       const busy = list.filter((a) => a.status === "busy").length;
       const queued = list.reduce((s, a) => s + a.queued_requests, 0);
-      const status: Room["status"] = busy > 0 ? "LIVE" : queued > 0 ? "PROC" : "IDLE";
+      const status: Room["status"] =
+        busy > 0 ? "LIVE" : queued > 0 ? "PROC" : "IDLE";
       return { role, total: list.length, busy, queued, status };
     })
     .sort((a, b) => a.role.localeCompare(b.role));
@@ -54,7 +55,15 @@ const ROOM_STATUS_COLOR: Record<Room["status"], string> = {
   IDLE: "text-[#6b7280] border-[#2e3653]",
 };
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Kpi({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
   return (
     <div className="bg-[#131826] border border-[#232a40] rounded-lg p-3">
       <div className="text-[10px] uppercase tracking-wide text-[#7e89a3] font-mono">
@@ -67,8 +76,14 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
 }
 
 export default function ConsolePage(): React.ReactNode {
-  const { data: agentsData, refetch } = useCoordinationPoll(() => fetchAgents(), []);
-  const { data: dash } = useCoordinationPoll<CoordDashboard>(() => fetchDashboard(), []);
+  const { data: agentsData, refetch } = useCoordinationPoll(
+    () => fetchAgents(),
+    [],
+  );
+  const { data: dash } = useCoordinationPoll<CoordDashboard>(
+    () => fetchDashboard(),
+    [],
+  );
 
   const agents = useMemo(() => agentsData?.agents ?? [], [agentsData]);
   const rooms = useMemo(() => buildRooms(agents), [agents]);
@@ -110,7 +125,10 @@ export default function ConsolePage(): React.ReactNode {
           <span className="text-[#c7d0e0]">CEO</span>
           <span className="text-[#4b5573]">(Humano)</span>
         </span>
-        <Link href="/" className="text-xs text-[#4b5573] hover:text-[#c7d0e0] flex items-center gap-1">
+        <Link
+          href="/"
+          className="text-xs text-[#4b5573] hover:text-[#c7d0e0] flex items-center gap-1"
+        >
           <ArrowLeft size={13} /> escritório
         </Link>
       </header>
@@ -134,7 +152,10 @@ export default function ConsolePage(): React.ReactNode {
 
         {/* COLLABORATIVE ROOMS (35%) — salas = roles do roster */}
         <section className="basis-[35%] border-r border-[#232a40] flex flex-col min-h-0 portrait:basis-auto portrait:flex-1 portrait:border-r-0">
-          <PanelHead title="COLLABORATIVE ROOMS" right={`${rooms.filter((r) => r.status !== "IDLE").length} ativas`} />
+          <PanelHead
+            title="COLLABORATIVE ROOMS"
+            right={`${rooms.filter((r) => r.status !== "IDLE").length} ativas`}
+          />
           <div className="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2 content-start">
             {rooms.map((r) => (
               <div
@@ -142,17 +163,23 @@ export default function ConsolePage(): React.ReactNode {
                 className={`rounded-lg border bg-[#131826] p-3 ${ROOM_STATUS_COLOR[r.status]}`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#f1f5fb] text-sm truncate">{r.role}</span>
+                  <span className="font-bold text-[#f1f5fb] text-sm truncate">
+                    {r.role}
+                  </span>
                   <span className="text-[10px] font-mono">● {r.status}</span>
                 </div>
                 <div className="text-[11px] text-[#7e89a3] mt-2 font-mono">
                   {r.busy}/{r.total} ocupados
-                  {r.queued > 0 && <span className="text-[#fbbf24]"> · {r.queued} fila</span>}
+                  {r.queued > 0 && (
+                    <span className="text-[#fbbf24]"> · {r.queued} fila</span>
+                  )}
                 </div>
                 <div className="mt-2 h-1.5 rounded bg-[#0a0e1a] overflow-hidden">
                   <div
                     className="h-full bg-[#4ade80]"
-                    style={{ width: `${r.total ? (r.busy / r.total) * 100 : 0}%` }}
+                    style={{
+                      width: `${r.total ? (r.busy / r.total) * 100 : 0}%`,
+                    }}
                   />
                 </div>
               </div>
@@ -168,12 +195,20 @@ export default function ConsolePage(): React.ReactNode {
           <PanelHead title="CEO DASHBOARD" right={dash ? "live" : "—"} />
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <Kpi label="Issues abertas" value={dash ? String(dash.github.open) : "—"} />
+              <Kpi
+                label="Issues abertas"
+                value={dash ? String(dash.github.open) : "—"}
+              />
               <Kpi label="Agentes ativos" value={`${active}/${total}`} />
-              <Kpi label="Claims ativos" value={dash ? String(dash.database.activeClaims) : "—"} />
+              <Kpi
+                label="Claims ativos"
+                value={dash ? String(dash.database.activeClaims) : "—"}
+              />
               <Kpi
                 label="Runs erro"
-                value={dash ? String(dash.database.runsByStatus.error ?? 0) : "—"}
+                value={
+                  dash ? String(dash.database.runsByStatus.error ?? 0) : "—"
+                }
               />
             </div>
             <div>
@@ -187,8 +222,14 @@ export default function ConsolePage(): React.ReactNode {
                     className="flex items-center justify-between text-xs bg-[#131826] border border-[#232a40] rounded px-2 py-1.5"
                   >
                     <span className="flex items-center gap-2 min-w-0">
-                      <span className={STATUS_DOT[a.status] ?? "text-[#6b7280]"}>●</span>
-                      <span className="text-[#c7d0e0] font-mono truncate">{a.nome}</span>
+                      <span
+                        className={STATUS_DOT[a.status] ?? "text-[#6b7280]"}
+                      >
+                        ●
+                      </span>
+                      <span className="text-[#c7d0e0] font-mono truncate">
+                        {a.nome}
+                      </span>
                     </span>
                     <span className="text-[#4b5573] shrink-0">{a.role}</span>
                   </div>
@@ -205,7 +246,9 @@ export default function ConsolePage(): React.ReactNode {
         <span>{clock || "--:--:--"}</span>
         <span>cockpit interno · Camada 3 (shell)</span>
         <div className="flex-1" />
-        <span>{total} agentes · {active} ativos</span>
+        <span>
+          {total} agentes · {active} ativos
+        </span>
       </footer>
     </main>
   );
@@ -217,12 +260,20 @@ function PanelHead({ title, right }: { title: string; right?: string }) {
       <span className="text-[11px] font-mono uppercase tracking-wider text-[#7e89a3] font-bold">
         {title}
       </span>
-      {right && <span className="text-[10px] font-mono text-[#4b5573]">{right}</span>}
+      {right && (
+        <span className="text-[10px] font-mono text-[#4b5573]">{right}</span>
+      )}
     </div>
   );
 }
 
-function Chip({ children, tone }: { children: React.ReactNode; tone?: "mint" | "amber" }) {
+function Chip({
+  children,
+  tone,
+}: {
+  children: React.ReactNode;
+  tone?: "mint" | "amber";
+}) {
   const c =
     tone === "mint"
       ? "text-[#4ade80] border-[#4ade80]/30"
@@ -230,6 +281,8 @@ function Chip({ children, tone }: { children: React.ReactNode; tone?: "mint" | "
         ? "text-[#fbbf24] border-[#fbbf24]/30"
         : "text-[#7e89a3] border-[#232a40]";
   return (
-    <span className={`px-2 py-0.5 rounded border bg-[#131826] ${c}`}>{children}</span>
+    <span className={`px-2 py-0.5 rounded border bg-[#131826] ${c}`}>
+      {children}
+    </span>
   );
 }

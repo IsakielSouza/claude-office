@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CoordAgent } from "./coordinationApi";
-import { buildWalkable, findPath, nearestWalkable, type Tile } from "./pathfinding";
+import {
+  buildWalkable,
+  findPath,
+  nearestWalkable,
+  type Tile,
+} from "./pathfinding";
 
 // ── Camada 3, slice 2: mapa espacial estilo Gather (planta-baixa pixel-art).
 // Renderizador Canvas 2D adaptado do mockup Agents-Office (pixel-office.jsx):
@@ -45,17 +50,42 @@ export const ROOMS = [
 ];
 
 const DESKS: [number, number][] = [
-  [4, 4], [8, 4], [12, 4], [16, 4], [27, 4], [31, 4], [35, 4], [39, 4],
-  [4, 18], [8, 18], [12, 18], [16, 18], [20, 18], [24, 18],
-  [35, 18], [39, 18], [43, 18], [60, 18], [64, 18], [68, 18],
-  [4, 33], [8, 33], [12, 33], [27, 33], [31, 33], [35, 33], [39, 33], [43, 33],
+  [4, 4],
+  [8, 4],
+  [12, 4],
+  [16, 4],
+  [27, 4],
+  [31, 4],
+  [35, 4],
+  [39, 4],
+  [4, 18],
+  [8, 18],
+  [12, 18],
+  [16, 18],
+  [20, 18],
+  [24, 18],
+  [35, 18],
+  [39, 18],
+  [43, 18],
+  [60, 18],
+  [64, 18],
+  [68, 18],
+  [4, 33],
+  [8, 33],
+  [12, 33],
+  [27, 33],
+  [31, 33],
+  [35, 33],
+  [39, 33],
+  [43, 33],
 ];
 
 // Desks contidos em cada sala (índice alinhado a ROOMS). Só as salas COM desk
 // podem virar "sala de uma função" (sala = role) — #410.
 const ROOM_DESKS: [number, number][][] = ROOMS.map((r) =>
   DESKS.filter(
-    ([dx, dy]) => dx > r.x && dx < r.x + r.w - 1 && dy > r.y && dy < r.y + r.h - 1,
+    ([dx, dy]) =>
+      dx > r.x && dx < r.x + r.w - 1 && dy > r.y && dy < r.y + r.h - 1,
   ),
 );
 const ROOMS_WITH_DESKS: number[] = ROOMS.map((_, i) => i).filter(
@@ -73,7 +103,14 @@ const STATUS_COLOR: Record<string, string> = {
 const CEO_SPAWN_TILE: Tile = [16, 21];
 const WALK_STEP_MS = 110; // tempo por tile na animação
 
-function px(ctx: CanvasRenderingContext2D, x: number, y: number, c: string, w = 1, h = 1) {
+function px(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  c: string,
+  w = 1,
+  h = 1,
+) {
   ctx.fillStyle = c;
   ctx.fillRect(x, y, w, h);
 }
@@ -99,7 +136,14 @@ function drawPlant(ctx: CanvasRenderingContext2D, tx: number, ty: number) {
 function drawFloor(ctx: CanvasRenderingContext2D) {
   for (let y = 0; y < ROWS; y++) {
     for (let x = 0; x < COLS; x++) {
-      px(ctx, x * TILE, y * TILE, (x + y) & 1 ? PALETTE.floor1 : PALETTE.floor2, TILE, TILE);
+      px(
+        ctx,
+        x * TILE,
+        y * TILE,
+        (x + y) & 1 ? PALETTE.floor1 : PALETTE.floor2,
+        TILE,
+        TILE,
+      );
     }
   }
   for (const r of ROOMS) {
@@ -124,7 +168,12 @@ function drawFloor(ctx: CanvasRenderingContext2D) {
   for (const [dx, dy] of DESKS) drawDesk(ctx, dx, dy);
 }
 
-function drawAgent(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string) {
+function drawAgent(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  color: string,
+) {
   const x = Math.round(cx) - 4;
   const y = Math.round(cy) - 8;
   ctx.fillStyle = "rgba(0,0,0,0.4)";
@@ -185,12 +234,20 @@ export function placeByRole(agents: CoordAgent[]): {
     const seat = seatByRole.get(agent.role) ?? 0;
     seatByRole.set(agent.role, seat + 1);
     const [dx, dy] = desks[seat % desks.length] ?? DESKS[i % DESKS.length];
-    return { agent, cx: dx * TILE + TILE / 2 + 4, cy: dy * TILE + TILE / 2 + 12 };
+    return {
+      agent,
+      cx: dx * TILE + TILE / 2 + 4,
+      cy: dy * TILE + TILE / 2 + 12,
+    };
   });
   return { placed, roomRole };
 }
 
-export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode {
+export function OfficeMap({
+  agents,
+}: {
+  agents: CoordAgent[];
+}): React.ReactNode {
   const bgRef = useRef<HTMLCanvasElement>(null);
   const fgRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<Placed | null>(null);
@@ -264,7 +321,15 @@ export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode
 
   return (
     <div className="relative w-full h-full grid place-items-center overflow-hidden">
-      <div className="relative" style={{ aspectRatio: `${W} / ${H}`, maxHeight: "100%", maxWidth: "100%", width: "100%" }}>
+      <div
+        className="relative"
+        style={{
+          aspectRatio: `${W} / ${H}`,
+          maxHeight: "100%",
+          maxWidth: "100%",
+          width: "100%",
+        }}
+      >
         <canvas
           ref={bgRef}
           width={W}
@@ -324,7 +389,10 @@ export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode
         {/* CEO-(Humano): label segue o avatar (click-to-walk) */}
         <div
           className="absolute -translate-x-1/2 -translate-y-full text-[8px] font-mono text-[#a78bfa] pointer-events-none whitespace-nowrap transition-all duration-100"
-          style={{ left: `${(ceoPx.cx * 100) / W}%`, top: `${((ceoPx.cy - 12) * 100) / H}%` }}
+          style={{
+            left: `${(ceoPx.cx * 100) / W}%`,
+            top: `${((ceoPx.cy - 12) * 100) / H}%`,
+          }}
         >
           CEO (Humano)
         </div>
@@ -332,9 +400,16 @@ export function OfficeMap({ agents }: { agents: CoordAgent[] }): React.ReactNode
         {hover && (
           <div
             className="absolute -translate-x-1/2 -translate-y-full px-1.5 py-0.5 rounded bg-[#0a0e1a] border border-[#2e3653] text-[9px] font-mono whitespace-nowrap pointer-events-none z-10"
-            style={{ left: `${(hover.cx * 100) / W}%`, top: `${(hover.cy * 100) / H}%` }}
+            style={{
+              left: `${(hover.cx * 100) / W}%`,
+              top: `${(hover.cy * 100) / H}%`,
+            }}
           >
-            <span style={{ color: STATUS_COLOR[hover.agent.status] ?? "#a78bfa" }}>● </span>
+            <span
+              style={{ color: STATUS_COLOR[hover.agent.status] ?? "#a78bfa" }}
+            >
+              ●{" "}
+            </span>
             <span className="text-[#c7d0e0]">{hover.agent.nome}</span>{" "}
             <span className="text-[#4b5573]">{hover.agent.role}</span>
           </div>
