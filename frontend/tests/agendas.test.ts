@@ -7,7 +7,7 @@ function mk(nome: string, role: string, cron_expr: string | null): CoordAgent {
     nome, role, projetos: [], mode: "persistent-24-7",
     contratado_em: null, last_active_at: null, status: "offline",
     active_claims: 0, queued_requests: 0,
-    cron_expr, enabled: true, archived_at: null,
+    cron_expr, enabled: true, archived_at: null, model: null,
   };
 }
 

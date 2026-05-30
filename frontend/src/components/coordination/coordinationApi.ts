@@ -55,6 +55,7 @@ export interface CoordAgent {
   cron_expr: string | null;
   enabled: boolean;
   archived_at: string | null;
+  model: string | null;
 }
 
 export interface CoordDashboard {
@@ -170,6 +171,7 @@ export async function createAgent(input: {
   role: string;
   projetos?: string[];
   mode?: "on-demand" | "persistent-24-7";
+  model?: string | null;
 }): Promise<{ agent: CoordAgent }> {
   const res = await fetch(`${BASE}/agents`, {
     method: "POST",
@@ -267,7 +269,7 @@ async function mutate<T>(path: string, method: string, body?: unknown): Promise<
 
 export const patchAgent = (
   nome: string,
-  patch: Partial<{ role: string; projetos: string[]; mode: string; cron_expr: string | null; enabled: boolean }>,
+  patch: Partial<{ role: string; projetos: string[]; mode: string; cron_expr: string | null; enabled: boolean; model: string | null }>,
 ): Promise<{ agent: CoordAgent }> =>
   mutate(`/agents/${encodeURIComponent(nome)}`, "PATCH", patch);
 

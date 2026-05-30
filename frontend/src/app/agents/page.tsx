@@ -144,6 +144,7 @@ export default function AgentsPage(): React.ReactNode {
                 >
                   <td className="px-3 py-2 font-mono text-slate-200">
                     {a.nome}
+                    {a.model && <span className="ml-2 rounded bg-indigo-900 px-1.5 py-0.5 text-xs">{a.model}</span>}
                   </td>
                   <td className="px-3 py-2 text-slate-400">{a.role}</td>
                   <td className="px-3 py-2">

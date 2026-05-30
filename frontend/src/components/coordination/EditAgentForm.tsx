@@ -4,6 +4,13 @@ import { useState } from "react";
 import { Pencil, X } from "lucide-react";
 import { patchAgent, type CoordAgent } from "./coordinationApi";
 
+const MODEL_OPTIONS = [
+  { value: "", label: "Default" },
+  { value: "opus", label: "Opus" },
+  { value: "sonnet", label: "Sonnet" },
+  { value: "haiku", label: "Haiku" },
+];
+
 export function EditAgentForm({
   agent,
   onSaved,
@@ -17,6 +24,7 @@ export function EditAgentForm({
   const [mode, setMode] = useState<"on-demand" | "persistent-24-7">(
     agent.mode === "persistent-24-7" ? "persistent-24-7" : "on-demand",
   );
+  const [model, setModel] = useState(agent.model ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -28,6 +36,7 @@ export function EditAgentForm({
         role: role.trim(),
         projetos: projetos.split(",").map((s) => s.trim()).filter(Boolean),
         mode,
+        model: model || null,
       });
       setOpen(false);
       onSaved?.();
@@ -54,6 +63,9 @@ export function EditAgentForm({
       <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} className="bg-neutral-900 rounded px-2 py-1 text-sm">
         <option value="on-demand">on-demand</option>
         <option value="persistent-24-7">persistent-24-7</option>
+      </select>
+      <select value={model} onChange={(e) => setModel(e.target.value)} className="bg-neutral-900 rounded px-2 py-1 text-sm">
+        {MODEL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       {err && <div className="text-xs text-red-400">{err}</div>}
       <button onClick={save} disabled={busy} className="rounded bg-blue-600 px-3 py-1 text-sm disabled:opacity-50">salvar</button>

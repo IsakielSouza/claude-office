@@ -23,6 +23,7 @@ function agent(nome: string, role: string, status = "idle"): CoordAgent {
     cron_expr: null,
     enabled: true,
     archived_at: null,
+    model: null,
   };
 }
 

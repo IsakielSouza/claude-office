@@ -4,6 +4,13 @@ import { useState } from "react";
 import { UserPlus, X } from "lucide-react";
 import { createAgent } from "./coordinationApi";
 
+const MODEL_OPTIONS = [
+  { value: "", label: "Default" },
+  { value: "opus", label: "Opus" },
+  { value: "sonnet", label: "Sonnet" },
+  { value: "haiku", label: "Haiku" },
+];
+
 /**
  * Contratar agente (#408 / EPIC #395). Faz upsert no roster (`agents`) via
  * POST /coordination/agents. Caminho do cockpit pra contratação manual pelo CEO —
@@ -19,6 +26,7 @@ export function HireAgentForm({
   const [role, setRole] = useState("");
   const [projetos, setProjetos] = useState("");
   const [mode, setMode] = useState<"on-demand" | "persistent-24-7">("on-demand");
+  const [model, setModel] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +48,7 @@ export function HireAgentForm({
           .map((s) => s.trim())
           .filter(Boolean),
         mode,
+        model: model || null,
       });
       setOkMsg(`${r.agent.nome} no roster (${r.agent.mode})`);
       setNome("");
@@ -102,6 +111,9 @@ export function HireAgentForm({
         >
           <option value="on-demand">on-demand</option>
           <option value="persistent-24-7">24/7</option>
+        </select>
+        <select value={model} onChange={(e) => setModel(e.target.value)} className="bg-neutral-900 rounded px-2 py-1 text-sm">
+          {MODEL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
       <div className="flex items-center gap-3">
