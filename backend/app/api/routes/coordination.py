@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from collections import deque
 from typing import Annotated, Any, cast
@@ -449,6 +450,7 @@ async def dashboard(
 _AGENTS_SQL = text("""
 SELECT a.nome, a.role, a.projetos, a.mode,
        a.contratado_em, a.last_active_at,
+       a.cron_expr, a.enabled, a.archived_at,
        CASE WHEN COALESCE(aw.cnt, 0) > 0 THEN 'busy' ELSE a.status END AS status,
        COALESCE(aw.cnt, 0)   AS active_claims,
        COALESCE(q.queued, 0) AS queued_requests
@@ -459,6 +461,7 @@ LEFT JOIN (SELECT to_agent, COUNT(*) AS queued FROM requests
            WHERE status = 'queued' GROUP BY to_agent) q
        ON q.to_agent = a.nome
 WHERE (CAST(:role AS text) IS NULL OR a.role = CAST(:role AS text))
+  AND (CAST(:include_archived AS boolean) IS TRUE OR a.archived_at IS NULL)
 ORDER BY a.role, a.nome
 """)
 
@@ -467,12 +470,160 @@ ORDER BY a.role, a.nome
 async def list_agents(
     db: Annotated[AsyncSession, Depends(get_coordination_db)],
     role: str | None = None,
+    include_archived: bool = False,
 ) -> dict[str, Any]:
     try:
-        result = await db.execute(_AGENTS_SQL, {"role": role})
+        result = await db.execute(
+            _AGENTS_SQL, {"role": role, "include_archived": include_archived}
+        )
         return {"agents": _row_dicts(result)}
     except (OperationalError, InterfaceError, DBAPIError) as exc:
         logger.warning("coordination /agents unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
+
+
+# ── PATCH /agents/{nome} ──────────────────────────────────────────────────────
+_CRON_FIELD_RE = re.compile(r"^(\*|\d+)(-\d+)?(/\d+)?(,(\*|\d+)(-\d+)?(/\d+)?)*$")
+
+
+def _valid_cron(expr: str) -> bool:
+    parts = expr.split()
+    return len(parts) == 5 and all(_CRON_FIELD_RE.match(p) for p in parts)
+
+
+class PatchAgentBody(BaseModel):
+    role: str | None = None
+    projetos: list[str] | None = None
+    mode: str | None = None
+    cron_expr: str | None = None
+    enabled: bool | None = None
+
+
+@router.patch("/agents/{nome}", dependencies=[Depends(enforce_write_rate_limit)])
+async def patch_agent(
+    nome: str,
+    body: PatchAgentBody,
+    db: Annotated[AsyncSession, Depends(get_coordination_db)],
+) -> dict[str, Any]:
+    sets: list[str] = []
+    params: dict[str, Any] = {"nome": nome}
+    if body.role is not None:
+        sets.append("role = :role"); params["role"] = body.role.strip()
+    if body.projetos is not None:
+        sets.append("projetos = :projetos")
+        params["projetos"] = [p.strip() for p in body.projetos if p.strip()]
+    if body.mode is not None:
+        if body.mode not in _AGENT_MODES:
+            raise HTTPException(status_code=422,
+                detail={"error": "invalid_mode", "allowed": list(_AGENT_MODES)})
+        sets.append("mode = :mode"); params["mode"] = body.mode
+    if body.cron_expr is not None:
+        if body.cron_expr and not _valid_cron(body.cron_expr):
+            raise HTTPException(status_code=422, detail={"error": "invalid_cron_expr"})
+        sets.append("cron_expr = :cron_expr")
+        params["cron_expr"] = body.cron_expr or None
+    if body.enabled is not None:
+        sets.append("enabled = :enabled"); params["enabled"] = body.enabled
+    if not sets:
+        raise HTTPException(status_code=422, detail={"error": "empty_patch"})
+    if body.projetos is not None:
+        sql = text(
+            f"UPDATE agents SET {', '.join(sets)} WHERE nome = :nome "
+            "RETURNING nome, role, projetos, mode, status, cron_expr, enabled, "
+            "archived_at, contratado_em, last_active_at"
+        ).bindparams(bindparam("projetos", type_=ARRAY(Text)))
+    else:
+        sql = text(
+            f"UPDATE agents SET {', '.join(sets)} WHERE nome = :nome "
+            "RETURNING nome, role, projetos, mode, status, cron_expr, enabled, "
+            "archived_at, contratado_em, last_active_at"
+        )
+    try:
+        result = await db.execute(sql, params)
+        row = result.mappings().first()
+        if row is None:
+            raise HTTPException(status_code=404, detail={"error": "agent_not_found"})
+        await db.commit()
+        return {"agent": dict(row)}
+    except (OperationalError, InterfaceError, DBAPIError) as exc:
+        logger.warning("coordination PATCH /agents unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
+
+
+# ── archive / restore ─────────────────────────────────────────────────────────
+_ARCHIVE_RETURN = ("RETURNING nome, role, projetos, mode, status, cron_expr, "
+                   "enabled, archived_at, contratado_em, last_active_at")
+
+
+@router.post("/agents/{nome}/archive", dependencies=[Depends(enforce_write_rate_limit)])
+async def archive_agent(
+    nome: str,
+    db: Annotated[AsyncSession, Depends(get_coordination_db)],
+) -> dict[str, Any]:
+    try:
+        claims = await db.execute(
+            text("SELECT COUNT(*) FROM active_work WHERE agent = :n"), {"n": nome}
+        )
+        if (claims.scalar() or 0) > 0:
+            raise HTTPException(status_code=409, detail={"error": "active_claim"})
+        result = await db.execute(
+            text(f"UPDATE agents SET archived_at = now() WHERE nome = :n {_ARCHIVE_RETURN}"),
+            {"n": nome},
+        )
+        row = result.mappings().first()
+        if row is None:
+            raise HTTPException(status_code=404, detail={"error": "agent_not_found"})
+        await db.commit()
+        return {"agent": dict(row)}
+    except HTTPException:
+        raise
+    except (OperationalError, InterfaceError, DBAPIError) as exc:
+        logger.warning("coordination archive unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
+
+
+@router.post("/agents/{nome}/restore", dependencies=[Depends(enforce_write_rate_limit)])
+async def restore_agent(
+    nome: str,
+    db: Annotated[AsyncSession, Depends(get_coordination_db)],
+) -> dict[str, Any]:
+    try:
+        result = await db.execute(
+            text(f"UPDATE agents SET archived_at = NULL WHERE nome = :n {_ARCHIVE_RETURN}"),
+            {"n": nome},
+        )
+        row = result.mappings().first()
+        if row is None:
+            raise HTTPException(status_code=404, detail={"error": "agent_not_found"})
+        await db.commit()
+        return {"agent": dict(row)}
+    except (OperationalError, InterfaceError, DBAPIError) as exc:
+        logger.warning("coordination restore unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
+
+
+# ── DELETE /agents/{nome} (purge só de arquivado) ─────────────────────────────
+@router.delete("/agents/{nome}", status_code=204,
+               dependencies=[Depends(enforce_write_rate_limit)])
+async def delete_agent(
+    nome: str,
+    db: Annotated[AsyncSession, Depends(get_coordination_db)],
+) -> None:
+    try:
+        chk = await db.execute(
+            text("SELECT archived_at FROM agents WHERE nome = :n"), {"n": nome}
+        )
+        row = chk.first()
+        if row is None:
+            raise HTTPException(status_code=404, detail={"error": "agent_not_found"})
+        if row[0] is None:
+            raise HTTPException(status_code=409, detail={"error": "archive_first"})
+        await db.execute(text("DELETE FROM agents WHERE nome = :n"), {"n": nome})
+        await db.commit()
+    except HTTPException:
+        raise
+    except (OperationalError, InterfaceError, DBAPIError) as exc:
+        logger.warning("coordination delete unavailable: %s", exc)
         raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
 
 

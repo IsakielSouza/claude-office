@@ -252,6 +252,102 @@ class TestCoordinationLive:
         )
         assert r.status_code == 422
 
+    def test_get_agents_exposes_schedule_fields(self) -> None:
+        nome = "__TEST_SCHED__"
+        client = TestClient(app)
+        try:
+            client.post(
+                "/api/v1/coordination/agents",
+                json={"nome": nome, "role": "__test__", "mode": "on-demand"},
+            )
+            r = client.get("/api/v1/coordination/agents")
+            assert r.status_code == 200, r.text
+            ag = next(a for a in r.json()["agents"] if a["nome"] == nome)
+            assert "cron_expr" in ag and "enabled" in ag and "archived_at" in ag
+        finally:
+            _delete_agent(nome)
+
+    def test_patch_agent_updates_cron_and_enabled(self) -> None:
+        nome = "__TEST_PATCH__"
+        client = TestClient(app)
+        try:
+            client.post("/api/v1/coordination/agents",
+                        json={"nome": nome, "role": "devops"})
+            r = client.patch(f"/api/v1/coordination/agents/{nome}",
+                             json={"cron_expr": "0 8,12,15,18,22,23 * * *",
+                                   "enabled": False})
+            assert r.status_code == 200, r.text
+            ag = r.json()["agent"]
+            assert ag["cron_expr"] == "0 8,12,15,18,22,23 * * *"
+            assert ag["enabled"] is False
+        finally:
+            _delete_agent(nome)
+
+    def test_patch_agent_rejects_bad_cron(self) -> None:
+        nome = "__TEST_PATCH2__"
+        client = TestClient(app)
+        try:
+            client.post("/api/v1/coordination/agents",
+                        json={"nome": nome, "role": "devops"})
+            r = client.patch(f"/api/v1/coordination/agents/{nome}",
+                             json={"cron_expr": "0 8 * *"})
+            assert r.status_code == 422
+        finally:
+            _delete_agent(nome)
+
+    def test_patch_agent_404(self) -> None:
+        client = TestClient(app)
+        r = client.patch("/api/v1/coordination/agents/__nao_existe__",
+                         json={"enabled": True})
+        assert r.status_code == 404
+
+    def test_archive_and_restore_agent(self) -> None:
+        nome = "__TEST_ARCH__"
+        client = TestClient(app)
+        try:
+            client.post("/api/v1/coordination/agents",
+                        json={"nome": nome, "role": "__test__"})
+            r = client.post(f"/api/v1/coordination/agents/{nome}/archive")
+            assert r.status_code == 200, r.text
+            assert r.json()["agent"]["archived_at"] is not None
+            # some do GET default
+            base = client.get("/api/v1/coordination/agents").json()["agents"]
+            assert all(a["nome"] != nome for a in base)
+            # aparece com include_archived
+            arch = client.get(
+                "/api/v1/coordination/agents?include_archived=true"
+            ).json()["agents"]
+            assert any(a["nome"] == nome for a in arch)
+            # restore
+            r2 = client.post(f"/api/v1/coordination/agents/{nome}/restore")
+            assert r2.status_code == 200
+            assert r2.json()["agent"]["archived_at"] is None
+        finally:
+            _delete_agent(nome)
+
+    def test_delete_requires_archived_first(self) -> None:
+        nome = "__TEST_DEL__"
+        client = TestClient(app)
+        try:
+            client.post("/api/v1/coordination/agents",
+                        json={"nome": nome, "role": "__test__"})
+            # ativo → 409
+            assert client.delete(
+                f"/api/v1/coordination/agents/{nome}"
+            ).status_code == 409
+            # arquiva → delete OK
+            client.post(f"/api/v1/coordination/agents/{nome}/archive")
+            assert client.delete(
+                f"/api/v1/coordination/agents/{nome}"
+            ).status_code == 204
+            # sumiu de vez
+            arch = client.get(
+                "/api/v1/coordination/agents?include_archived=true"
+            ).json()["agents"]
+            assert all(a["nome"] != nome for a in arch)
+        finally:
+            _delete_agent(nome)
+
 
 def test_create_request_degrade_503_when_db_down() -> None:
     async def _boom():  # type: ignore[no-untyped-def]
