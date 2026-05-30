@@ -1,13 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { CoordinationNav } from "@/components/coordination/CoordinationNav";
 import { ConvocarAgentForm } from "@/components/coordination/ConvocarAgentForm";
 import { HireAgentForm } from "@/components/coordination/HireAgentForm";
+import { EditAgentForm } from "@/components/coordination/EditAgentForm";
 import { useCoordinationPoll } from "@/components/coordination/useCoordinationPoll";
-import { fetchAgents } from "@/components/coordination/coordinationApi";
+import {
+  fetchAgents,
+  archiveAgent,
+  restoreAgent,
+  deleteAgent,
+  type CoordAgent,
+} from "@/components/coordination/coordinationApi";
 
 // status derivado pelo backend (busy = tem claim ativo; senão idle/offline do roster)
 const STATUS_COLORS: Record<string, string> = {
@@ -24,6 +31,8 @@ function fmtTime(s: string | null): string {
 
 export default function AgentsPage(): React.ReactNode {
   const [role, setRole] = useState("");
+  const [archived, setArchived] = useState<CoordAgent[]>([]);
+  const [archivedErr, setArchivedErr] = useState<string | null>(null);
 
   const qs = useMemo(
     () => (role ? `?role=${encodeURIComponent(role)}` : ""),
@@ -34,6 +43,22 @@ export default function AgentsPage(): React.ReactNode {
     () => fetchAgents(qs),
     [qs],
   );
+
+  const loadArchived = useCallback(async () => {
+    try {
+      const res = await fetchAgents("?include_archived=true");
+      setArchived(res.agents.filter((a) => a.archived_at !== null));
+      setArchivedErr(null);
+    } catch (e) {
+      setArchivedErr(e instanceof Error ? e.message : "erro");
+    }
+  }, []);
+
+  useEffect(() => { void loadArchived(); }, [loadArchived]);
+
+  async function reload(): Promise<void> {
+    await Promise.all([refetch(), loadArchived()]);
+  }
 
   return (
     <main className="min-h-screen bg-neutral-950 text-slate-200 p-4">
@@ -108,6 +133,7 @@ export default function AgentsPage(): React.ReactNode {
                 <th className="px-3 py-2 font-bold">Fila</th>
                 <th className="px-3 py-2 font-bold">Projetos</th>
                 <th className="px-3 py-2 font-bold">Último ativo</th>
+                <th className="px-3 py-2 font-bold">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -156,12 +182,25 @@ export default function AgentsPage(): React.ReactNode {
                   <td className="px-3 py-2 text-slate-400 whitespace-nowrap">
                     {fmtTime(a.last_active_at)}
                   </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-col gap-1">
+                      <EditAgentForm agent={a} onSaved={() => void reload()} />
+                      <button
+                        className="text-sm text-amber-400 text-left"
+                        onClick={async () => {
+                          if (!confirm(`Arquivar ${a.nome}?`)) return;
+                          try { await archiveAgent(a.nome); void reload(); }
+                          catch (e) { alert(e instanceof Error ? e.message : "erro"); }
+                        }}
+                      >arquivar</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {data.agents.length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-3 py-6 text-center text-slate-600"
                   >
                     Roster vazio — contrate agentes (INSERT em agents).
@@ -170,6 +209,59 @@ export default function AgentsPage(): React.ReactNode {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+      {/* ── Arquivados ── */}
+      {(archived.length > 0 || archivedErr) && (
+        <div className="mt-6">
+          <h2 className="text-base font-semibold text-slate-400 mb-2">Arquivados</h2>
+          {archivedErr && (
+            <div className="text-sm text-rose-400 mb-2">Erro ao carregar arquivados: {archivedErr}</div>
+          )}
+          <div className="overflow-x-auto border border-slate-800 rounded-lg">
+            <table className="w-full text-sm">
+              <thead className="text-slate-500 text-left bg-slate-900/50">
+                <tr>
+                  <th className="px-3 py-2 font-bold">Agente</th>
+                  <th className="px-3 py-2 font-bold">Função</th>
+                  <th className="px-3 py-2 font-bold">Modo</th>
+                  <th className="px-3 py-2 font-bold">Projetos</th>
+                  <th className="px-3 py-2 font-bold">Arquivado em</th>
+                  <th className="px-3 py-2 font-bold">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {archived.map((a) => (
+                  <tr key={a.nome} className="border-t border-slate-900 opacity-60 hover:opacity-100">
+                    <td className="px-3 py-2 font-mono text-slate-400">{a.nome}</td>
+                    <td className="px-3 py-2 text-slate-500">{a.role}</td>
+                    <td className="px-3 py-2 text-slate-500">{a.mode === "persistent-24-7" ? "24/7" : "on-demand"}</td>
+                    <td className="px-3 py-2 text-slate-500">{a.projetos.length ? a.projetos.join(", ") : "—"}</td>
+                    <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{fmtTime(a.archived_at)}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex gap-2">
+                        <button
+                          className="text-sm text-emerald-400"
+                          onClick={async () => {
+                            try { await restoreAgent(a.nome); void reload(); }
+                            catch (e) { alert(e instanceof Error ? e.message : "erro"); }
+                          }}
+                        >reativar</button>
+                        <button
+                          className="text-sm text-red-400"
+                          onClick={async () => {
+                            if (!confirm(`Excluir DEFINITIVAMENTE ${a.nome}? Irreversível.`)) return;
+                            try { await deleteAgent(a.nome); void reload(); }
+                            catch (e) { alert(e instanceof Error ? e.message : "erro"); }
+                          }}
+                        >excluir de vez</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </main>
