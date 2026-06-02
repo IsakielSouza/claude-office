@@ -10,14 +10,17 @@ import {
   fetchTasks,
   fetchHitlPending,
   answerHitl,
+  setTaskPriority,
   type CoordTask,
   type HitlPrompt,
   type HitlAnswerValue,
 } from "@/components/coordination/coordinationApi";
+import { batchApprovals } from "@/components/coordination/taskBatch";
 import HitlAnswerModal from "@/components/coordination/HitlAnswerModal";
 import { CreateTaskForm } from "@/components/coordination/CreateTaskForm";
 import {
   deriveStatus,
+  statusGroup,
   groupAndSortTasks,
   formatStuckTime,
   DEFAULT_SLA_MS,
@@ -68,6 +71,7 @@ function agentModel(t: CoordTask, status: TaskStatus): string {
 export default function TasksPage(): React.ReactNode {
   const { t: tr } = useTranslation();
   const [selectedPrompt, setSelectedPrompt] = useState<HitlPrompt | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   // nowMs sai de estado (lazy init, não Date.now() em render — regra
   // react-hooks/purity); o intervalo faz o "tempo parado" avançar.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -119,6 +123,45 @@ export default function TasksPage(): React.ReactNode {
     if (p0) setSelectedPrompt(p0);
   };
 
+  const onSkip = async (ref: string) => {
+    await setTaskPriority(ref, "bottom");
+    await refetch();
+  };
+  const onRetry = async (ref: string) => {
+    await setTaskPriority(ref, "top");
+    await refetch();
+  };
+  const toggleSel = (ref: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(ref)) n.delete(ref);
+      else n.add(ref);
+      return n;
+    });
+  const selectAllNeedYou = (refs: string[], on: boolean) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      for (const r of refs) {
+        if (on) n.add(r);
+        else n.delete(r);
+      }
+      return n;
+    });
+  const onBatchApprove = async () => {
+    const sel = (data?.tasks ?? []).filter((t) => selected.has(t.source_ref));
+    const ps = sel.flatMap((t) => promptsByRef.get(t.source_ref) ?? []);
+    const plan = batchApprovals(ps);
+    for (const a of plan.approvable) await answerHitl(a.id, a.answer);
+    setSelected(new Set());
+    await refetchHitl();
+    await refetch();
+  };
+  const onBatchSkip = async () => {
+    for (const ref of Array.from(selected)) await setTaskPriority(ref, "bottom");
+    setSelected(new Set());
+    await refetch();
+  };
+
   const renderRow = (t: CoordTask) => {
     const status = deriveStatus(t, prompts);
     const stuck = formatStuckTime(stuckSince(t, status), nowMs, DEFAULT_SLA_MS);
@@ -129,6 +172,14 @@ export default function TasksPage(): React.ReactNode {
         key={t.source_ref}
         className="flex items-center gap-3 px-3 py-3 border-t border-slate-900 hover:bg-slate-900/40"
       >
+        {statusGroup(status) === "need_you" && (
+          <input
+            type="checkbox"
+            className="w-4 h-4 shrink-0"
+            checked={selected.has(t.source_ref)}
+            onChange={() => toggleSel(t.source_ref)}
+          />
+        )}
         <div className="font-mono font-bold text-base w-16 shrink-0">
           #{t.number}
         </div>
@@ -163,6 +214,22 @@ export default function TasksPage(): React.ReactNode {
               {tr("tasks.see")}
             </button>
           )}
+          {status === "pending" && (
+            <button
+              onClick={() => void onSkip(t.source_ref)}
+              className="px-3 py-1.5 rounded text-sm font-bold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
+            >
+              ⤓ {tr("tasks.skip")}
+            </button>
+          )}
+          {status === "error" && (
+            <button
+              onClick={() => void onRetry(t.source_ref)}
+              className="px-3 py-1.5 rounded text-sm font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 hover:bg-sky-500/30"
+            >
+              ↻ {tr("tasks.retry")}
+            </button>
+          )}
           {t.url && (
             <a
               href={t.url}
@@ -183,20 +250,56 @@ export default function TasksPage(): React.ReactNode {
     titleKey: TranslationKey,
     tasks: CoordTask[],
     accent: string,
-  ) => (
-    <section className="mb-5">
-      <h2 className={`text-sm font-extrabold tracking-wide mb-1 ${accent}`}>
-        {tr(titleKey)} — {tasks.length}
-      </h2>
-      <div className="border border-slate-800 rounded-lg overflow-hidden">
-        {tasks.length === 0 ? (
-          <p className="px-3 py-4 text-slate-600 text-sm">{tr("tasks.empty")}</p>
-        ) : (
-          tasks.map(renderRow)
+    batch = false,
+  ) => {
+    const refs = tasks.map((t) => t.source_ref);
+    const selCount = refs.filter((r) => selected.has(r)).length;
+    const allSel = refs.length > 0 && selCount === refs.length;
+    return (
+      <section className="mb-5">
+        <h2 className={`text-sm font-extrabold tracking-wide mb-1 ${accent}`}>
+          {tr(titleKey)} — {tasks.length}
+        </h2>
+        {batch && tasks.length > 0 && (
+          <div className="flex items-center gap-2 mb-2 flex-wrap text-sm">
+            <label className="flex items-center gap-2 text-slate-300 font-semibold cursor-pointer">
+              <input
+                type="checkbox"
+                className="w-4 h-4"
+                checked={allSel}
+                onChange={(e) => selectAllNeedYou(refs, e.target.checked)}
+              />
+              {tr("tasks.selectAll")}
+            </label>
+            <button
+              disabled={selCount === 0}
+              onClick={() => void onBatchApprove()}
+              className="px-3 py-1.5 rounded font-bold bg-emerald-600 text-white disabled:opacity-40"
+            >
+              ✓ {tr("tasks.batchApprove")}
+            </button>
+            <button
+              disabled={selCount === 0}
+              onClick={() => void onBatchSkip()}
+              className="px-3 py-1.5 rounded font-bold bg-slate-700 text-slate-100 disabled:opacity-40"
+            >
+              ⤓ {tr("tasks.batchSkip")}
+            </button>
+            {selCount > 0 && (
+              <span className="text-slate-500">{selCount} selecionada(s)</span>
+            )}
+          </div>
         )}
-      </div>
-    </section>
-  );
+        <div className="border border-slate-800 rounded-lg overflow-hidden">
+          {tasks.length === 0 ? (
+            <p className="px-3 py-4 text-slate-600 text-sm">{tr("tasks.empty")}</p>
+          ) : (
+            tasks.map(renderRow)
+          )}
+        </div>
+      </section>
+    );
+  };
 
   return (
     <main className="min-h-screen bg-neutral-950 text-slate-200 p-4">
@@ -242,7 +345,7 @@ export default function TasksPage(): React.ReactNode {
 
       {data && !unavailable && (
         <>
-          {renderGroup("tasks.group.needYou", groups.need_you, "text-amber-400")}
+          {renderGroup("tasks.group.needYou", groups.need_you, "text-amber-400", true)}
           {renderGroup(
             "tasks.group.inProgress",
             groups.in_progress,

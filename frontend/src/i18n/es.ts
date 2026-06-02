@@ -280,6 +280,11 @@ const es: Record<TranslationKey, string> = {
   "tasks.openIssue": "Abrir en GitHub",
   "tasks.see": "Ver",
   "tasks.approve": "Aprobar",
+  "tasks.skip": "Saltar",
+  "tasks.retry": "Reintentar",
+  "tasks.selectAll": "Seleccionar todas",
+  "tasks.batchApprove": "Aprobar seleccionadas",
+  "tasks.batchSkip": "Saltar seleccionadas",
 };
 
 export default es;
