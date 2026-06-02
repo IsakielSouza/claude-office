@@ -264,6 +264,7 @@ const es: Record<TranslationKey, string> = {
   "hitl.textPlaceholder": "Escribe tu respuesta…",
   "hitl.noIssueSection": "Otros prompts en espera",
   "hitl.filterWaiting": "Esperando respuesta",
+  "hitl.recommended": "★ recomendado",
   "tasks.group.needYou": "⚠ Te necesita",
   "tasks.group.inProgress": "⚙ En curso",
   "tasks.group.queue": "📥 Cola",

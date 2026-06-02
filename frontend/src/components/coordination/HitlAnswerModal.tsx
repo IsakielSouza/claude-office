@@ -7,6 +7,7 @@ import type {
   HitlPrompt,
   HitlAnswerValue,
 } from "@/components/coordination/coordinationApi";
+import { initialSelection } from "@/components/coordination/hitlSelection";
 
 interface Props {
   prompt: HitlPrompt | null;
@@ -17,8 +18,14 @@ interface Props {
 /** Modal de resposta a um prompt HITL. Renderiza o corpo conforme o `kind`. */
 export default function HitlAnswerModal({ prompt, onClose, onSubmit }: Props) {
   const { t } = useTranslation();
-  const [choice, setChoice] = useState<string>("");
-  const [multi, setMulti] = useState<string[]>([]);
+  // Lazy init lê a opção recomendada; o modal remonta por prompt (key na página),
+  // então roda fresh a cada prompt — sem useEffect/set-state-in-effect.
+  const [choice, setChoice] = useState<string>(
+    () => initialSelection(prompt).choice,
+  );
+  const [multi, setMulti] = useState<string[]>(
+    () => initialSelection(prompt).multi,
+  );
   const [textValue, setTextValue] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,6 +134,11 @@ export default function HitlAnswerModal({ prompt, onClose, onSubmit }: Props) {
               />
               <span>
                 <strong>{o.key}</strong> — {o.label}
+                {prompt.recommended_key === o.key && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    {t("hitl.recommended")}
+                  </span>
+                )}
               </span>
             </label>
           ))}
@@ -147,6 +159,11 @@ export default function HitlAnswerModal({ prompt, onClose, onSubmit }: Props) {
               />
               <span>
                 <strong>{o.key}</strong> — {o.label}
+                {prompt.recommended_key === o.key && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    {t("hitl.recommended")}
+                  </span>
+                )}
               </span>
             </label>
           ))}

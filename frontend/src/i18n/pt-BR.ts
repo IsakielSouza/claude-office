@@ -264,6 +264,7 @@ const ptBR: Record<TranslationKey, string> = {
   "hitl.textPlaceholder": "Digite sua resposta…",
   "hitl.noIssueSection": "Outros prompts aguardando",
   "hitl.filterWaiting": "Aguardando resposta",
+  "hitl.recommended": "★ recomendado",
   "tasks.group.needYou": "⚠ Precisa de você",
   "tasks.group.inProgress": "⚙ Em andamento",
   "tasks.group.queue": "📥 Fila",
