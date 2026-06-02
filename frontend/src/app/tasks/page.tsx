@@ -743,14 +743,14 @@ export default function TasksPage(): React.ReactNode {
       )}
 
       <HitlAnswerModal
-        key={selectedPrompt?.id ?? "none"}
+        key={`hitl-${selectedPrompt?.id ?? "none"}`}
         prompt={selectedPrompt}
         onClose={() => setSelectedPrompt(null)}
         onSubmit={handleAnswer}
       />
 
       <TaskDetailModal
-        key={detailTask?.source_ref ?? "none"}
+        key={`task-${detailTask?.source_ref ?? "none"}`}
         task={detailTask}
         status={detailTask ? deriveStatus(detailTask, prompts) : "unknown"}
         agentModel={
