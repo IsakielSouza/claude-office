@@ -13,7 +13,9 @@ import {
   setTaskPriority,
   approveTask,
   removeFromQueue,
+  fetchAgents,
   type CoordTask,
+  type CoordAgent,
   type HitlPrompt,
   type HitlAnswerValue,
 } from "@/components/coordination/coordinationApi";
@@ -108,6 +110,9 @@ export default function TasksPage(): React.ReactNode {
     fetchHitlPending,
     [],
   );
+  // Agentes ativos agora (inclui coordenação: triador/QA/gerente) — pra "Em
+  // andamento" não ficar vazio enquanto a tela Agentes mostra alguém busy.
+  const { data: agentsData } = useCoordinationPoll(() => fetchAgents(""), []);
 
   // Ignora prompts expirados (expires_at no passado): pendência morta não conta.
   const prompts = useMemo(
@@ -165,6 +170,15 @@ export default function TasksPage(): React.ReactNode {
     () => groups.need_you.filter((t) => deriveStatus(t, prompts) === "pending"),
     [groups, prompts],
   );
+  // Agentes busy cujo trabalho NÃO é uma issue já listada em "Em andamento"
+  // (ex.: coordenação — triador/QA/gerente). Evita "Agents diz busy, Tasks vazio".
+  const busyAgents = useMemo(() => {
+    const inProg = new Set(groups.in_progress.map((t) => t.source_ref));
+    return (agentsData?.agents ?? []).filter(
+      (a: CoordAgent) =>
+        a.status === "busy" && !(a.current_ref && inProg.has(a.current_ref)),
+    );
+  }, [agentsData, groups]);
 
   // Prompts sem task casada na lista atual — não podem sumir (brecha HITL).
   const orphanPrompts = useMemo(() => {
@@ -659,6 +673,33 @@ export default function TasksPage(): React.ReactNode {
               groups.in_progress,
               "text-sky-400",
             )}
+          {!hidden.has("in_progress") && busyAgents.length > 0 && (
+            <div className="mb-5 -mt-3">
+              <div className="text-xs text-slate-500 mb-1">
+                Agentes ativos agora
+              </div>
+              <div className="border border-slate-800 rounded-lg overflow-hidden">
+                {busyAgents.map((a) => (
+                  <div
+                    key={a.nome}
+                    className="flex items-center gap-3 px-3 py-2 border-t border-slate-900 text-sm"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+                    <span className="font-bold text-slate-200">{a.nome}</span>
+                    <span className="text-slate-500 text-xs">
+                      {a.role}
+                      {a.model ? ` · ${a.model}` : ""}
+                    </span>
+                    <span className="text-sky-300 text-xs ml-auto">
+                      {a.current_ref
+                        ? `▶ ${a.current_ref}${a.current_title ? ` — ${a.current_title}` : ""}`
+                        : "coordenação"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {!hidden.has("queue") &&
             renderGroup(
               "tasks.group.queue",
