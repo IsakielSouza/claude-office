@@ -327,3 +327,34 @@ export const removeFromQueue = (
   sourceRef: string,
 ): Promise<{ source_ref: string; action: string }> =>
   mutate(`/tasks/${encodeURIComponent(sourceRef)}/remove`, "POST");
+
+// ── Detalhe da task (corpo da issue ao vivo) + notas do CEO ──────────────────
+export interface TaskNote {
+  id: number;
+  note: string;
+  created_by: string;
+  created_at: string;
+  consumed_at: string | null;
+}
+
+export interface TaskDetail {
+  source_ref: string;
+  title: string | null;
+  url: string | null;
+  body: string;
+  notes: TaskNote[];
+}
+
+export const fetchTaskDetail = (sourceRef: string): Promise<TaskDetail> =>
+  getJson<TaskDetail>(`/tasks/${encodeURIComponent(sourceRef)}/detail`);
+
+/** Grava uma nota livre do CEO pra task (lida pelo agente no início — via dispatch). */
+export const addTaskNote = (
+  sourceRef: string,
+  note: string,
+  createdBy = "web",
+): Promise<{ id: number; source_ref: string; created_at: string }> =>
+  mutate(`/tasks/${encodeURIComponent(sourceRef)}/note`, "POST", {
+    note,
+    created_by: createdBy,
+  });

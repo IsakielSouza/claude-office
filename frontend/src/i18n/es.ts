@@ -289,6 +289,11 @@ const es: Record<TranslationKey, string> = {
   "tasks.processing": "procesando…",
   "tasks.removeFromQueue": "Quitar de la cola",
   "tasks.prioritize": "Priorizar",
+  "tasks.issueBody": "Contenido de la issue",
+  "tasks.noBody": "Sin descripción.",
+  "tasks.notesTitle": "Notas para el agente",
+  "tasks.notePlaceholder": "Nota para el agente (leída al iniciar la task)…",
+  "tasks.sendNote": "Enviar nota al agente",
 };
 
 export default es;

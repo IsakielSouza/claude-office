@@ -289,6 +289,11 @@ const ptBR: Record<TranslationKey, string> = {
   "tasks.processing": "processando…",
   "tasks.removeFromQueue": "Remover da fila",
   "tasks.prioritize": "Priorizar",
+  "tasks.issueBody": "Conteúdo da issue",
+  "tasks.noBody": "Sem descrição.",
+  "tasks.notesTitle": "Notas pro agente",
+  "tasks.notePlaceholder": "Nota pro agente (lida quando a task iniciar)…",
+  "tasks.sendNote": "Enviar nota ao agente",
 };
 
 export default ptBR;
