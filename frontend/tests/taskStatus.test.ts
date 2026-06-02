@@ -57,6 +57,11 @@ describe("deriveStatus", () => {
   it("CLOSED → done", () => {
     expect(deriveStatus(baseTask({ state: "CLOSED" }), [])).toBe("done");
   });
+  it("label parked → done (removida da fila, sai do vivo)", () => {
+    expect(deriveStatus(baseTask({ labels: ["parked", "area:trackers"] }), [])).toBe(
+      "done",
+    );
+  });
   it("claim in_progress → running (precede pendente)", () => {
     const t = baseTask({ claim_status: "in_progress", labels: ["hitl"] });
     expect(deriveStatus(t, [pendingPrompt(t.source_ref)])).toBe("running");

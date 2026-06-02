@@ -541,3 +541,32 @@ def test_remove_rejects_ref_without_number() -> None:
     client = TestClient(app)
     r = client.post("/api/v1/coordination/tasks/semnumero/remove")
     assert r.status_code == 400
+
+
+def test_note_rejects_empty() -> None:
+    client = TestClient(app)
+    r = client.post(
+        "/api/v1/coordination/tasks/agents-ia%2333/note", json={"note": "   "}
+    )
+    assert r.status_code == 422
+
+
+def test_note_rejects_bad_ref() -> None:
+    client = TestClient(app)
+    r = client.post(
+        "/api/v1/coordination/tasks/semnumero/note", json={"note": "oi"}
+    )
+    assert r.status_code == 400
+
+
+@pytest.mark.skipif(not _coord_up(), reason=":5433 coordination DB indisponível")
+def test_note_roundtrip_and_detail() -> None:
+    """POST /note grava; GET /detail devolve a nota (corpo via gh pode vir vazio)."""
+    client = TestClient(app)
+    ref_enc = "agents-ia%23999999"
+    r = client.post(f"/api/v1/coordination/tasks/{ref_enc}/note", json={"note": "teste F-notas"})
+    assert r.status_code == 200
+    d = client.get(f"/api/v1/coordination/tasks/{ref_enc}/detail").json()
+    assert "body" in d and "notes" in d
+    assert any(n["note"] == "teste F-notas" for n in d["notes"])
+    _admin_exec("DELETE FROM task_notes WHERE source_ref = :r", {"r": "agents-ia#999999"})

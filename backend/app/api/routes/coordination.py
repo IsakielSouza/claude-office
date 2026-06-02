@@ -205,8 +205,10 @@ async def approve_task(source_ref: str) -> dict[str, Any]:
     return {"source_ref": source_ref, "action": "released", "labels": "hitl→afk"}
 
 
-# Remover da fila de dispatch: tira o label `afk` (a issue sai da fila; volta a
-# needs-label pro gerente reclassificar). Reusa o padrão gh dos endpoints acima.
+# Remover da fila: marca a issue com `parked` (o cockpit a exclui dos grupos vivos,
+# como faz com CLOSED). NÃO basta tirar `afk` — uma issue com `area:*` continua na
+# fila como `todo`/`open` (bug #33). `parked` tira de vez do cockpit; reversível
+# (basta remover o label). O triador deve pular `parked` (follow-up, janela).
 @router.post(
     "/tasks/{source_ref}/remove", dependencies=[Depends(enforce_write_rate_limit)]
 )
@@ -218,7 +220,7 @@ async def remove_from_queue(source_ref: str) -> dict[str, Any]:
         )
     proc = await asyncio.create_subprocess_exec(
         "gh", "issue", "edit", str(num), "--repo", _AGENTS_IA_REPO,
-        "--remove-label", "afk",
+        "--add-label", "parked",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     _, err = await proc.communicate()
@@ -227,7 +229,84 @@ async def remove_from_queue(source_ref: str) -> dict[str, Any]:
             status_code=502,
             detail={"error": "gh falhou", "stderr": err.decode()[:300]},
         )
-    return {"source_ref": source_ref, "action": "removed_from_queue"}
+    return {"source_ref": source_ref, "action": "parked"}
+
+
+# ── Notas do CEO pra uma task (migration 012, canal-agnóstico) ──────────────────
+class NoteBody(BaseModel):
+    note: str
+    created_by: str = "web"
+
+
+_NOTE_INSERT_SQL = text("""
+INSERT INTO task_notes (source_ref, note, created_by)
+VALUES (:ref, :note, :by)
+RETURNING id, created_at
+""")
+
+_NOTES_BY_REF_SQL = text("""
+SELECT id, note, created_by, created_at, consumed_at
+FROM task_notes WHERE source_ref = :ref
+ORDER BY created_at DESC
+""")
+
+
+@router.post(
+    "/tasks/{source_ref}/note", dependencies=[Depends(enforce_write_rate_limit)]
+)
+async def add_task_note(
+    source_ref: str,
+    body: NoteBody,
+    db: Annotated[AsyncSession, Depends(get_coordination_db)],
+) -> dict[str, Any]:
+    text_note = body.note.strip()
+    if not text_note:
+        raise HTTPException(status_code=422, detail={"error": "nota vazia"})
+    if _ref_to_issue_number(source_ref) is None:
+        raise HTTPException(
+            status_code=400, detail={"error": "source_ref sem número de issue"}
+        )
+    try:
+        row = (
+            await db.execute(
+                _NOTE_INSERT_SQL,
+                {"ref": source_ref, "note": text_note, "by": body.created_by},
+            )
+        ).mappings().first()
+        await db.commit()
+        return {"id": row["id"], "source_ref": source_ref, "created_at": row["created_at"]}
+    except (OperationalError, InterfaceError, DBAPIError) as exc:
+        logger.warning("coordination /note unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
+
+
+@router.get("/tasks/{source_ref}/detail")
+async def task_detail(
+    source_ref: str,
+    db: Annotated[AsyncSession, Depends(get_coordination_db)],
+) -> dict[str, Any]:
+    # Corpo da issue: fetch ao vivo via gh (não está no read-model). Best-effort.
+    body_text, title, url = "", None, None
+    num = _ref_to_issue_number(source_ref)
+    if num is not None:
+        proc = await asyncio.create_subprocess_exec(
+            "gh", "issue", "view", str(num), "--repo", _AGENTS_IA_REPO,
+            "--json", "body,title,url",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        out, _ = await proc.communicate()
+        if proc.returncode == 0:
+            try:
+                d = json.loads(out)
+                body_text, title, url = d.get("body") or "", d.get("title"), d.get("url")
+            except json.JSONDecodeError:
+                pass
+    try:
+        notes = _row_dicts(await db.execute(_NOTES_BY_REF_SQL, {"ref": source_ref}))
+    except (OperationalError, InterfaceError, DBAPIError) as exc:
+        logger.warning("coordination /detail unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
+    return {"source_ref": source_ref, "title": title, "url": url, "body": body_text, "notes": notes}
 
 
 class CreateTaskBody(BaseModel):

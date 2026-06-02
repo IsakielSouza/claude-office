@@ -25,6 +25,7 @@ import {
   deriveStatus,
   statusGroup,
   groupAndSortTasks,
+  queueRank,
   formatStuckTime,
   DEFAULT_SLA_MS,
   type TaskStatus,
@@ -83,6 +84,12 @@ export default function TasksPage(): React.ReactNode {
   const [resolved, setResolved] = useState<Set<string>>(() => new Set());
   // refs com ação em voo: mostram "processando" e botões desabilitados.
   const [processing, setProcessing] = useState<Set<string>>(() => new Set());
+  // reordenação OTIMISTA da fila (o label só reflete no /tasks após o sync do
+  // coletor ~5min; aqui sobe/desce na hora). prioritized: mais recente primeiro.
+  const [prioritized, setPrioritized] = useState<string[]>([]);
+  const [deprioritized, setDeprioritized] = useState<Set<string>>(
+    () => new Set(),
+  );
   // nowMs sai de estado (lazy init, não Date.now() em render — regra
   // react-hooks/purity); o intervalo faz o "tempo parado" avançar.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -123,14 +130,31 @@ export default function TasksPage(): React.ReactNode {
 
   const groups = useMemo(() => {
     const g = groupAndSortTasks(data?.tasks ?? [], prompts);
-    // Aprovadas nesta sessão somem de "Precisa de você" mesmo antes do coletor
-    // re-sincronizar o label (evita o delay de a linha continuar lá).
+    // Aprovadas/removidas nesta sessão somem na hora (otimista). E a fila reordena
+    // otimista por prioritized/deprioritized (o label só reflete após o sync ~5min).
+    const effRank = (t: CoordTask) =>
+      prioritized.includes(t.source_ref)
+        ? 0
+        : deprioritized.has(t.source_ref)
+          ? 2
+          : queueRank(t);
+    const prioIdx = (t: CoordTask) => {
+      const i = prioritized.indexOf(t.source_ref);
+      return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+    };
     return {
       ...g,
       need_you: g.need_you.filter((t) => !resolved.has(t.source_ref)),
-      queue: g.queue.filter((t) => !resolved.has(t.source_ref)),
+      queue: g.queue
+        .filter((t) => !resolved.has(t.source_ref))
+        .sort(
+          (a, b) =>
+            effRank(a) - effRank(b) ||
+            prioIdx(a) - prioIdx(b) ||
+            a.number - b.number,
+        ),
     };
-  }, [data, prompts, resolved]);
+  }, [data, prompts, resolved, prioritized, deprioritized]);
 
   // "Precisa de você" se divide em Erros (precisam retry) e Pendentes (aguardam você).
   const errorTasks = useMemo(
@@ -179,7 +203,9 @@ export default function TasksPage(): React.ReactNode {
     }
   };
 
-  const onSkip = (ref: string) =>
+  const onSkip = (ref: string) => {
+    setDeprioritized((prev) => new Set(prev).add(ref));
+    setPrioritized((prev) => prev.filter((r) => r !== ref));
     void withProcessing(
       ref,
       async () => {
@@ -187,6 +213,7 @@ export default function TasksPage(): React.ReactNode {
       },
       `${ref} → fim da fila`,
     );
+  };
   const onRetry = (ref: string) =>
     void withProcessing(
       ref,
@@ -205,7 +232,13 @@ export default function TasksPage(): React.ReactNode {
       `${ref} removida da fila`,
     );
   // Priorizar: joga pro topo da fila (fila:topo) → próximo ciclo do gerente pega primeiro.
-  const onPrioritize = (ref: string) =>
+  const onPrioritize = (ref: string) => {
+    setPrioritized((prev) => [ref, ...prev.filter((r) => r !== ref)]);
+    setDeprioritized((prev) => {
+      const n = new Set(prev);
+      n.delete(ref);
+      return n;
+    });
     void withProcessing(
       ref,
       async () => {
@@ -213,6 +246,7 @@ export default function TasksPage(): React.ReactNode {
       },
       `${ref} → topo da fila (próxima a fazer)`,
     );
+  };
 
   // Aprovação direta (1 clique): responde o prompt do banco OU libera o label
   // hitl. Hide otimista: a task some de "Precisa de você" assim que o servidor
