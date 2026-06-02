@@ -18,10 +18,12 @@ export interface CoordTask {
   claim_agent: string | null;
   claim_mechanism: string | null;
   claimed_at: string | null;
+  claim_model: string | null;
   run_status: string | null;
   run_started_at: string | null;
   run_ended_at: string | null;
   run_agent: string | null;
+  run_model: string | null;
 }
 
 export interface CoordRun {

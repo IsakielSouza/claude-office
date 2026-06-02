@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NeedYouIndicator } from "./NeedYouIndicator";
 
 const TABS = [
   { href: "/console", label: "Console" },
@@ -17,7 +18,7 @@ const TABS = [
 export function CoordinationNav(): React.ReactNode {
   const path = usePathname();
   return (
-    <nav className="flex gap-2 border-b border-slate-800 mb-4">
+    <nav className="flex items-center gap-2 border-b border-slate-800 mb-4">
       {TABS.map((tab) => (
         <Link
           key={tab.href}
@@ -31,6 +32,7 @@ export function CoordinationNav(): React.ReactNode {
           {tab.label}
         </Link>
       ))}
+      <NeedYouIndicator />
     </nav>
   );
 }
