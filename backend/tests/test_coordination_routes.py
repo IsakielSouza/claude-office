@@ -535,3 +535,9 @@ def test_agents_expose_current_and_recent() -> None:
         pytest.skip("roster vazio")
     assert "current_ref" in a[0]
     assert "recent_done" in a[0]
+
+
+def test_remove_rejects_ref_without_number() -> None:
+    client = TestClient(app)
+    r = client.post("/api/v1/coordination/tasks/semnumero/remove")
+    assert r.status_code == 400
