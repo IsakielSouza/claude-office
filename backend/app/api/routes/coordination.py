@@ -557,15 +557,32 @@ _AGENTS_SQL = text("""
 SELECT a.nome, a.role, a.projetos, a.mode, a.model,
        a.contratado_em, a.last_active_at,
        a.cron_expr, a.enabled, a.archived_at,
-       CASE WHEN COALESCE(aw.cnt, 0) > 0 THEN 'busy' ELSE a.status END AS status,
+       CASE WHEN COALESCE(aw.cnt, 0) > 0 THEN 'busy'
+            WHEN a.status = 'busy'       THEN 'idle'
+            ELSE a.status END                AS status,
        COALESCE(aw.cnt, 0)   AS active_claims,
-       COALESCE(q.queued, 0) AS queued_requests
+       COALESCE(q.queued, 0) AS queued_requests,
+       cur.source_ref        AS current_ref,
+       cur.title             AS current_title,
+       COALESCE(rd.recent, '[]'::json) AS recent_done
 FROM agents a
 LEFT JOIN (SELECT agent, COUNT(*) AS cnt FROM active_work GROUP BY agent) aw
        ON aw.agent = a.nome
 LEFT JOIN (SELECT to_agent, COUNT(*) AS queued FROM requests
            WHERE status = 'queued' GROUP BY to_agent) q
        ON q.to_agent = a.nome
+LEFT JOIN LATERAL (
+    SELECT source_ref, title FROM active_work
+    WHERE agent = a.nome ORDER BY claimed_at DESC LIMIT 1
+) cur ON TRUE
+LEFT JOIN LATERAL (
+    SELECT json_agg(json_build_object('ref', source_ref, 'at', released_at)) AS recent
+    FROM (
+        SELECT source_ref, released_at FROM work_claims
+        WHERE agent = a.nome AND status = 'done'
+        ORDER BY released_at DESC LIMIT 3
+    ) d
+) rd ON TRUE
 WHERE (CAST(:role AS text) IS NULL OR a.role = CAST(:role AS text))
   AND (CAST(:include_archived AS boolean) IS TRUE OR a.archived_at IS NULL)
 ORDER BY a.role, a.nome
