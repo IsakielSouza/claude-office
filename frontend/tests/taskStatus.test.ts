@@ -43,6 +43,7 @@ const pendingPrompt = (ref: string): HitlPrompt => ({
   context: null,
   kind: "yesno",
   options: null,
+  recommended_key: null,
   status: "pending",
   answer: null,
   created_at: "2026-06-01T00:00:00Z",

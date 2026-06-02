@@ -284,6 +284,7 @@ export default function TasksPage(): React.ReactNode {
       )}
 
       <HitlAnswerModal
+        key={selectedPrompt?.id ?? "none"}
         prompt={selectedPrompt}
         onClose={() => setSelectedPrompt(null)}
         onSubmit={handleAnswer}

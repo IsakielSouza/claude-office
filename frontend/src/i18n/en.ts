@@ -262,6 +262,7 @@ const en = {
   "hitl.textPlaceholder": "Type your answer…",
   "hitl.noIssueSection": "Other awaiting prompts",
   "hitl.filterWaiting": "Awaiting response",
+  "hitl.recommended": "★ recommended",
   "tasks.group.needYou": "⚠ Needs you",
   "tasks.group.inProgress": "⚙ In progress",
   "tasks.group.queue": "📥 Queue",
