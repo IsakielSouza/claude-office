@@ -305,3 +305,10 @@ export const restoreAgent = (nome: string): Promise<{ agent: CoordAgent }> =>
 
 export const deleteAgent = (nome: string): Promise<void> =>
   mutate(`/agents/${encodeURIComponent(nome)}`, "DELETE");
+
+/** Skip/Retry do cockpit: aplica label de prioridade (fila:topo/fila:fim) via backend. */
+export const setTaskPriority = (
+  sourceRef: string,
+  rank: "top" | "bottom",
+): Promise<{ source_ref: string; label: string }> =>
+  mutate(`/tasks/${encodeURIComponent(sourceRef)}/priority`, "POST", { rank });

@@ -280,6 +280,11 @@ const ptBR: Record<TranslationKey, string> = {
   "tasks.openIssue": "Abrir no GitHub",
   "tasks.see": "Ver",
   "tasks.approve": "Aprovar",
+  "tasks.skip": "Pular",
+  "tasks.retry": "Retry",
+  "tasks.selectAll": "Selecionar todas",
+  "tasks.batchApprove": "Aprovar selecionadas",
+  "tasks.batchSkip": "Pular selecionadas",
 };
 
 export default ptBR;

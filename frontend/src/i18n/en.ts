@@ -278,6 +278,11 @@ const en = {
   "tasks.openIssue": "Open on GitHub",
   "tasks.see": "View",
   "tasks.approve": "Approve",
+  "tasks.skip": "Skip",
+  "tasks.retry": "Retry",
+  "tasks.selectAll": "Select all",
+  "tasks.batchApprove": "Approve selected",
+  "tasks.batchSkip": "Skip selected",
 } as const;
 
 export type TranslationKey = keyof typeof en;
