@@ -287,6 +287,11 @@ const en = {
   "tasks.processing": "processing…",
   "tasks.removeFromQueue": "Remove from queue",
   "tasks.prioritize": "Prioritize",
+  "tasks.issueBody": "Issue content",
+  "tasks.noBody": "No description.",
+  "tasks.notesTitle": "Notes to the agent",
+  "tasks.notePlaceholder": "Note for the agent (read when the task starts)…",
+  "tasks.sendNote": "Send note to agent",
 } as const;
 
 export type TranslationKey = keyof typeof en;

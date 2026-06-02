@@ -709,6 +709,7 @@ export default function TasksPage(): React.ReactNode {
       />
 
       <TaskDetailModal
+        key={detailTask?.source_ref ?? "none"}
         task={detailTask}
         status={detailTask ? deriveStatus(detailTask, prompts) : "unknown"}
         agentModel={

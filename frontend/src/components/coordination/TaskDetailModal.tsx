@@ -1,8 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Modal from "@/components/overlay/Modal";
 import { useTranslation, type TranslationKey } from "@/hooks/useTranslation";
-import type { CoordTask } from "@/components/coordination/coordinationApi";
+import {
+  fetchTaskDetail,
+  addTaskNote,
+  type CoordTask,
+  type TaskDetail,
+} from "@/components/coordination/coordinationApi";
 import type { TaskStatus } from "@/components/coordination/taskStatus";
 
 interface Props {
@@ -15,8 +21,8 @@ interface Props {
   onRetry: (ref: string) => void;
 }
 
-/** Modal de detalhes de uma task (sem prompt HITL do banco). Mostra contexto da
- *  issue + ações diretas (Aprovar/Pular/Retry conforme o status). */
+/** Modal de detalhes: corpo da issue (fetch ao vivo) + notas do CEO pro agente +
+ *  ações diretas. Remonta por task (key na página) → estado/fetch frescos. */
 export default function TaskDetailModal({
   task,
   status,
@@ -27,7 +33,47 @@ export default function TaskDetailModal({
   onRetry,
 }: Props): React.ReactNode {
   const { t } = useTranslation();
+  const [detail, setDetail] = useState<TaskDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [noteText, setNoteText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const ref = task?.source_ref ?? null;
+
+  useEffect(() => {
+    if (!ref) return;
+    let alive = true;
+    fetchTaskDetail(ref)
+      .then((d) => alive && setDetail(d))
+      .catch(() => alive && setErr("falha ao carregar detalhes"))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [ref]);
+
   if (!task) return null;
+
+  const reload = () => {
+    if (ref) void fetchTaskDetail(ref).then(setDetail).catch(() => {});
+  };
+
+  const sendNote = async () => {
+    const txt = noteText.trim();
+    if (!txt || !ref) return;
+    setSending(true);
+    setErr(null);
+    try {
+      await addTaskNote(ref, txt);
+      setNoteText("");
+      reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "erro ao enviar nota");
+    } finally {
+      setSending(false);
+    }
+  };
 
   const isPendingLabel = status === "pending";
   const isError = status === "error";
@@ -75,15 +121,15 @@ export default function TaskDetailModal({
       title={`#${task.number} — ${task.title ?? ""}`}
       footer={footer}
     >
-      <div className="text-sm text-slate-300 mb-2 font-bold">
+      <div className="text-sm text-slate-300 mb-1 font-bold">
         {t(`tasks.status.${status}` as TranslationKey)}
       </div>
-      <div className="text-sm text-slate-400 mb-3">
+      <div className="text-sm text-slate-400 mb-2">
         {task.project ?? "—"}
         {agentModel && <span> · {agentModel}</span>}
       </div>
       {isError && task.run_status && (
-        <div className="mb-3 text-sm text-rose-400">
+        <div className="mb-2 text-sm text-rose-400">
           {t("tasks.status.error")}: {task.run_status}
         </div>
       )}
@@ -99,16 +145,68 @@ export default function TaskDetailModal({
           ))}
         </div>
       )}
-      {task.url && (
-        <a
-          href={task.url}
-          target="_blank"
-          rel="noreferrer"
-          className="block text-xs text-sky-400 hover:underline"
-        >
-          ↗ {t("tasks.openIssue")}
-        </a>
+
+      {/* Corpo da issue (fetch ao vivo) */}
+      <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">
+        {t("tasks.issueBody")}
+      </div>
+      <div className="mb-4 max-h-64 overflow-y-auto whitespace-pre-wrap text-sm text-slate-300 bg-slate-950 border border-slate-800 rounded p-3">
+        {loading ? (
+          <span className="text-slate-600">{t("tasks.processing")}</span>
+        ) : detail?.body ? (
+          detail.body
+        ) : (
+          <span className="text-slate-600">{t("tasks.noBody")}</span>
+        )}
+      </div>
+
+      {/* Notas do CEO pro agente */}
+      <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">
+        {t("tasks.notesTitle")}
+      </div>
+      {detail && detail.notes.length > 0 && (
+        <ul className="mb-2 flex flex-col gap-1">
+          {detail.notes.map((n) => (
+            <li
+              key={n.id}
+              className="text-sm bg-slate-900 border border-slate-800 rounded px-2 py-1"
+            >
+              <span className="text-slate-300">{n.note}</span>
+              <span className="text-slate-600 text-xs ml-2">
+                ({n.created_by}
+                {n.consumed_at ? " · lida pelo agente" : " · aguardando"})
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
+      <textarea
+        value={noteText}
+        onChange={(e) => setNoteText(e.target.value)}
+        rows={2}
+        placeholder={t("tasks.notePlaceholder")}
+        className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          disabled={sending || !noteText.trim()}
+          onClick={() => void sendNote()}
+          className="px-3 py-1.5 rounded text-sm font-bold bg-sky-600 text-white disabled:opacity-40"
+        >
+          {sending ? t("tasks.processing") : t("tasks.sendNote")}
+        </button>
+        {detail?.url && (
+          <a
+            href={detail.url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-sky-400 hover:underline"
+          >
+            ↗ {t("tasks.openIssue")}
+          </a>
+        )}
+      </div>
+      {err && <p className="mt-2 text-rose-400 text-xs">{err}</p>}
     </Modal>
   );
 }
