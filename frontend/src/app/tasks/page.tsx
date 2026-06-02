@@ -12,6 +12,7 @@ import {
   answerHitl,
   setTaskPriority,
   approveTask,
+  removeFromQueue,
   type CoordTask,
   type HitlPrompt,
   type HitlAnswerValue,
@@ -90,8 +91,10 @@ export default function TasksPage(): React.ReactNode {
     return () => window.clearInterval(id);
   }, []);
 
+  // Só OPEN: a tela exclui CLOSED de qualquer forma, e buscar fechadas (513!)
+  // estourava o LIMIT 200 e expulsava issues OPEN antigas (sumiam da tela).
   const { data, loading, unavailable, error, refetch } = useCoordinationPoll(
-    () => fetchTasks(""),
+    () => fetchTasks("?state=OPEN"),
     [],
   );
   const { data: hitlData, refetch: refetchHitl } = useCoordinationPoll(
@@ -99,7 +102,14 @@ export default function TasksPage(): React.ReactNode {
     [],
   );
 
-  const prompts = useMemo(() => hitlData?.prompts ?? [], [hitlData]);
+  // Ignora prompts expirados (expires_at no passado): pendência morta não conta.
+  const prompts = useMemo(
+    () =>
+      (hitlData?.prompts ?? []).filter(
+        (p) => !p.expires_at || Date.parse(p.expires_at) > nowMs,
+      ),
+    [hitlData, nowMs],
+  );
   const promptsByRef = useMemo(() => {
     const m = new Map<string, HitlPrompt[]>();
     for (const p of prompts) {
@@ -115,8 +125,22 @@ export default function TasksPage(): React.ReactNode {
     const g = groupAndSortTasks(data?.tasks ?? [], prompts);
     // Aprovadas nesta sessão somem de "Precisa de você" mesmo antes do coletor
     // re-sincronizar o label (evita o delay de a linha continuar lá).
-    return { ...g, need_you: g.need_you.filter((t) => !resolved.has(t.source_ref)) };
+    return {
+      ...g,
+      need_you: g.need_you.filter((t) => !resolved.has(t.source_ref)),
+      queue: g.queue.filter((t) => !resolved.has(t.source_ref)),
+    };
   }, [data, prompts, resolved]);
+
+  // "Precisa de você" se divide em Erros (precisam retry) e Pendentes (aguardam você).
+  const errorTasks = useMemo(
+    () => groups.need_you.filter((t) => deriveStatus(t, prompts) === "error"),
+    [groups, prompts],
+  );
+  const pendingTasks = useMemo(
+    () => groups.need_you.filter((t) => deriveStatus(t, prompts) === "pending"),
+    [groups, prompts],
+  );
 
   // Prompts sem task casada na lista atual — não podem sumir (brecha HITL).
   const orphanPrompts = useMemo(() => {
@@ -170,6 +194,24 @@ export default function TasksPage(): React.ReactNode {
         await setTaskPriority(ref, "top");
       },
       `${ref} → topo da fila (retry)`,
+    );
+  const onRemove = (ref: string) =>
+    void withProcessing(
+      ref,
+      async () => {
+        await removeFromQueue(ref);
+        setResolved((s) => new Set(s).add(ref)); // some da fila na hora
+      },
+      `${ref} removida da fila`,
+    );
+  // Priorizar: joga pro topo da fila (fila:topo) → próximo ciclo do gerente pega primeiro.
+  const onPrioritize = (ref: string) =>
+    void withProcessing(
+      ref,
+      async () => {
+        await setTaskPriority(ref, "top");
+      },
+      `${ref} → topo da fila (próxima a fazer)`,
     );
 
   // Aprovação direta (1 clique): responde o prompt do banco OU libera o label
@@ -289,7 +331,7 @@ export default function TasksPage(): React.ReactNode {
       return n;
     });
 
-  const renderRow = (t: CoordTask) => {
+  const renderRow = (t: CoordTask, queuePos?: number) => {
     const status = deriveStatus(t, prompts);
     const stuck = formatStuckTime(stuckSince(t, status), nowMs, DEFAULT_SLA_MS);
     const am = agentModel(t, status);
@@ -299,6 +341,14 @@ export default function TasksPage(): React.ReactNode {
         key={t.source_ref}
         className="flex items-center gap-3 px-3 py-3 border-t border-slate-900 hover:bg-slate-900/40"
       >
+        {queuePos !== undefined && (
+          <span
+            className="text-xs font-bold text-slate-200 bg-slate-700 rounded px-1.5 py-0.5 shrink-0 w-8 text-center"
+            title="posição na fila"
+          >
+            {queuePos}
+          </span>
+        )}
         {statusGroup(status) === "need_you" && (
           <input
             type="checkbox"
@@ -371,6 +421,22 @@ export default function TasksPage(): React.ReactNode {
                   ↻ {tr("tasks.retry")}
                 </button>
               )}
+              {(status === "todo" || status === "open") && (
+                <>
+                  <button
+                    onClick={() => onPrioritize(t.source_ref)}
+                    className="px-3 py-1.5 rounded text-sm font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
+                  >
+                    ↑ {tr("tasks.prioritize")}
+                  </button>
+                  <button
+                    onClick={() => onRemove(t.source_ref)}
+                    className="px-3 py-1.5 rounded text-sm font-bold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-rose-500/20 hover:text-rose-300"
+                  >
+                    ✕ {tr("tasks.removeFromQueue")}
+                  </button>
+                </>
+              )}
             </>
           )}
           {t.url && (
@@ -394,6 +460,7 @@ export default function TasksPage(): React.ReactNode {
     tasks: CoordTask[],
     accent: string,
     batch = false,
+    numbered = false,
   ) => {
     const refs = tasks.map((t) => t.source_ref);
     const selCount = refs.filter((r) => selected.has(r)).length;
@@ -437,7 +504,7 @@ export default function TasksPage(): React.ReactNode {
           {tasks.length === 0 ? (
             <p className="px-3 py-4 text-slate-600 text-sm">{tr("tasks.empty")}</p>
           ) : (
-            tasks.map(renderRow)
+            tasks.map((t, i) => renderRow(t, numbered ? i + 1 : undefined))
           )}
         </div>
       </section>
@@ -500,6 +567,26 @@ export default function TasksPage(): React.ReactNode {
 
       {data && !unavailable && (
         <>
+          <div className="mb-2 text-sm text-slate-400">
+            <b className="text-slate-200">
+              {groups.need_you.length +
+                groups.in_progress.length +
+                groups.queue.length}{" "}
+              abertas
+            </b>
+            {" = "}
+            <span className="text-rose-400">{errorTasks.length} erros</span>
+            {" · "}
+            <span className="text-amber-400">
+              {pendingTasks.length} precisa de você
+            </span>
+            {" · "}
+            <span className="text-sky-400">
+              {groups.in_progress.length} em andamento
+            </span>
+            {" · "}
+            <span>{groups.queue.length} na fila</span>
+          </div>
           <div className="flex flex-wrap gap-2 mb-3">
             {(
               [
@@ -523,9 +610,12 @@ export default function TasksPage(): React.ReactNode {
             ))}
           </div>
           {!hidden.has("need_you") &&
+            errorTasks.length > 0 &&
+            renderGroup("tasks.group.errors", errorTasks, "text-rose-400")}
+          {!hidden.has("need_you") &&
             renderGroup(
               "tasks.group.needYou",
-              groups.need_you,
+              pendingTasks,
               "text-amber-400",
               true,
             )}
@@ -536,7 +626,13 @@ export default function TasksPage(): React.ReactNode {
               "text-sky-400",
             )}
           {!hidden.has("queue") &&
-            renderGroup("tasks.group.queue", groups.queue, "text-slate-400")}
+            renderGroup(
+              "tasks.group.queue",
+              groups.queue,
+              "text-slate-400",
+              false,
+              true,
+            )}
         </>
       )}
 

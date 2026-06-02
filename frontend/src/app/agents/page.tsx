@@ -137,6 +137,7 @@ export default function AgentsPage(): React.ReactNode {
                 <th className="px-3 py-2 font-bold">Função</th>
                 <th className="px-3 py-2 font-bold">Modo</th>
                 <th className="px-3 py-2 font-bold">Status</th>
+                <th className="px-3 py-2 font-bold">Atividade</th>
                 <th className="px-3 py-2 font-bold">Claims</th>
                 <th className="px-3 py-2 font-bold">Fila</th>
                 <th className="px-3 py-2 font-bold">Projetos</th>
@@ -176,6 +177,25 @@ export default function AgentsPage(): React.ReactNode {
                     >
                       ● {a.status}
                     </span>
+                  </td>
+                  <td className="px-3 py-2 text-xs">
+                    {a.current_ref ? (
+                      <div className="text-sky-300">
+                        ▶ {a.current_ref}
+                        {a.current_title ? ` — ${a.current_title}` : ""}
+                      </div>
+                    ) : (
+                      <div className="text-slate-600">ocioso</div>
+                    )}
+                    {a.recent_done.length > 0 && (
+                      <div className="text-slate-500 mt-0.5">
+                        ✓{" "}
+                        {a.recent_done
+                          .map((d) => d.ref)
+                          .filter(Boolean)
+                          .join(", ")}
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2 font-mono text-slate-400">
                     {a.active_claims}
@@ -219,7 +239,7 @@ export default function AgentsPage(): React.ReactNode {
               {data.agents.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-3 py-6 text-center text-slate-600"
                   >
                     Roster vazio — contrate agentes (INSERT em agents).

@@ -7,6 +7,7 @@ import {
   deriveStatus,
   statusGroup,
   groupAndSortTasks,
+  queueRank,
   formatStuckTime,
   needYouCount,
 } from "../src/components/coordination/taskStatus";
@@ -120,6 +121,25 @@ describe("groupAndSortTasks", () => {
     expect(g.need_you.map((t) => t.number)).toEqual([5, 20]);
     expect(g.in_progress.map((t) => t.number)).toEqual([10]);
     expect(g.queue.map((t) => t.number)).toEqual([7]);
+  });
+});
+
+describe("queueRank + ordem da fila", () => {
+  it("fila:topo=0, fila:fim=2, normal=1", () => {
+    expect(queueRank(baseTask({ labels: ["fila:topo"] }))).toBe(0);
+    expect(queueRank(baseTask({ labels: ["fila:fim"] }))).toBe(2);
+    expect(queueRank(baseTask({ labels: ["afk"] }))).toBe(1);
+  });
+  it("fila ordena topo → chegada(nº) → fim", () => {
+    const tasks = [
+      baseTask({ number: 50, labels: ["afk"], source_ref: "r50" }),
+      baseTask({ number: 10, labels: ["afk", "fila:fim"], source_ref: "r10" }),
+      baseTask({ number: 90, labels: ["afk", "fila:topo"], source_ref: "r90" }),
+      baseTask({ number: 20, labels: ["afk"], source_ref: "r20" }),
+    ];
+    const g = groupAndSortTasks(tasks, []);
+    // topo(90) primeiro; meio por nº (20, 50); fim(10) por último
+    expect(g.queue.map((t) => t.number)).toEqual([90, 20, 50, 10]);
   });
 });
 

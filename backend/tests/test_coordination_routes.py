@@ -513,3 +513,31 @@ def test_approve_rejects_ref_without_number() -> None:
     client = TestClient(app)
     r = client.post("/api/v1/coordination/tasks/semnumero/approve")
     assert r.status_code == 400
+
+
+@pytest.mark.skipif(not _coord_up(), reason=":5433 coordination DB indisponível")
+def test_no_busy_without_active_claim() -> None:
+    """Nenhum agente pode estar 'busy' sem claim ativo (fix do busy stale)."""
+    client = TestClient(app)
+    resp = client.get("/api/v1/coordination/agents")
+    assert resp.status_code == 200
+    for a in resp.json()["agents"]:
+        if a["status"] == "busy":
+            assert a["active_claims"] > 0, f"{a['nome']} busy sem claim"
+
+
+@pytest.mark.skipif(not _coord_up(), reason=":5433 coordination DB indisponível")
+def test_agents_expose_current_and_recent() -> None:
+    """/agents devolve current_ref e recent_done (item ativo + concluídas)."""
+    client = TestClient(app)
+    a = client.get("/api/v1/coordination/agents").json()["agents"]
+    if not a:
+        pytest.skip("roster vazio")
+    assert "current_ref" in a[0]
+    assert "recent_done" in a[0]
+
+
+def test_remove_rejects_ref_without_number() -> None:
+    client = TestClient(app)
+    r = client.post("/api/v1/coordination/tasks/semnumero/remove")
+    assert r.status_code == 400

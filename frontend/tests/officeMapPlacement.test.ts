@@ -24,6 +24,9 @@ function agent(nome: string, role: string, status = "idle"): CoordAgent {
     enabled: true,
     archived_at: null,
     model: null,
+    current_ref: null,
+    current_title: null,
+    recent_done: [],
   };
 }
 

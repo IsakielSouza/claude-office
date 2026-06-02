@@ -265,6 +265,7 @@ const ptBR: Record<TranslationKey, string> = {
   "hitl.noIssueSection": "Outros prompts aguardando",
   "hitl.filterWaiting": "Aguardando resposta",
   "hitl.recommended": "★ recomendado",
+  "tasks.group.errors": "✗ Erros",
   "tasks.group.needYou": "⚠ Precisa de você",
   "tasks.group.inProgress": "⚙ Em andamento",
   "tasks.group.queue": "📥 Fila",
@@ -286,6 +287,8 @@ const ptBR: Record<TranslationKey, string> = {
   "tasks.batchApprove": "Aprovar selecionadas",
   "tasks.batchSkip": "Pular selecionadas",
   "tasks.processing": "processando…",
+  "tasks.removeFromQueue": "Remover da fila",
+  "tasks.prioritize": "Priorizar",
 };
 
 export default ptBR;
