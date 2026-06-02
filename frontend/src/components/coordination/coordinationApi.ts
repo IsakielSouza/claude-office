@@ -227,6 +227,7 @@ export interface HitlPrompt {
   context: string | null;
   kind: HitlKind;
   options: HitlOption[] | null;
+  recommended_key: string | null;
   status: "pending" | "answered" | "expired";
   answer: boolean | string | string[] | null;
   created_at: string;
