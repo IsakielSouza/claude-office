@@ -12,6 +12,7 @@ import {
   answerHitl,
   setTaskPriority,
   approveTask,
+  removeFromQueue,
   type CoordTask,
   type HitlPrompt,
   type HitlAnswerValue,
@@ -115,7 +116,11 @@ export default function TasksPage(): React.ReactNode {
     const g = groupAndSortTasks(data?.tasks ?? [], prompts);
     // Aprovadas nesta sessão somem de "Precisa de você" mesmo antes do coletor
     // re-sincronizar o label (evita o delay de a linha continuar lá).
-    return { ...g, need_you: g.need_you.filter((t) => !resolved.has(t.source_ref)) };
+    return {
+      ...g,
+      need_you: g.need_you.filter((t) => !resolved.has(t.source_ref)),
+      queue: g.queue.filter((t) => !resolved.has(t.source_ref)),
+    };
   }, [data, prompts, resolved]);
 
   // Prompts sem task casada na lista atual — não podem sumir (brecha HITL).
@@ -170,6 +175,15 @@ export default function TasksPage(): React.ReactNode {
         await setTaskPriority(ref, "top");
       },
       `${ref} → topo da fila (retry)`,
+    );
+  const onRemove = (ref: string) =>
+    void withProcessing(
+      ref,
+      async () => {
+        await removeFromQueue(ref);
+        setResolved((s) => new Set(s).add(ref)); // some da fila na hora
+      },
+      `${ref} removida da fila`,
     );
 
   // Aprovação direta (1 clique): responde o prompt do banco OU libera o label
@@ -369,6 +383,14 @@ export default function TasksPage(): React.ReactNode {
                   className="px-3 py-1.5 rounded text-sm font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 hover:bg-sky-500/30"
                 >
                   ↻ {tr("tasks.retry")}
+                </button>
+              )}
+              {(status === "todo" || status === "open") && (
+                <button
+                  onClick={() => onRemove(t.source_ref)}
+                  className="px-3 py-1.5 rounded text-sm font-bold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-rose-500/20 hover:text-rose-300"
+                >
+                  ✕ {tr("tasks.removeFromQueue")}
                 </button>
               )}
             </>

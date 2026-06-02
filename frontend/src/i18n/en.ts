@@ -284,6 +284,7 @@ const en = {
   "tasks.batchApprove": "Approve selected",
   "tasks.batchSkip": "Skip selected",
   "tasks.processing": "processing…",
+  "tasks.removeFromQueue": "Remove from queue",
 } as const;
 
 export type TranslationKey = keyof typeof en;

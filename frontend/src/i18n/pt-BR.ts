@@ -286,6 +286,7 @@ const ptBR: Record<TranslationKey, string> = {
   "tasks.batchApprove": "Aprovar selecionadas",
   "tasks.batchSkip": "Pular selecionadas",
   "tasks.processing": "processando…",
+  "tasks.removeFromQueue": "Remover da fila",
 };
 
 export default ptBR;

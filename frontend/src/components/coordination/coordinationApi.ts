@@ -58,6 +58,9 @@ export interface CoordAgent {
   enabled: boolean;
   archived_at: string | null;
   model: string | null;
+  current_ref: string | null;
+  current_title: string | null;
+  recent_done: { ref: string | null; at: string | null }[];
 }
 
 export interface CoordDashboard {
@@ -318,3 +321,9 @@ export const approveTask = (
   sourceRef: string,
 ): Promise<{ source_ref: string; action: string }> =>
   mutate(`/tasks/${encodeURIComponent(sourceRef)}/approve`, "POST");
+
+/** Remover da fila de dispatch: tira o label afk via backend. */
+export const removeFromQueue = (
+  sourceRef: string,
+): Promise<{ source_ref: string; action: string }> =>
+  mutate(`/tasks/${encodeURIComponent(sourceRef)}/remove`, "POST");

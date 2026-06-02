@@ -17,6 +17,9 @@ function mk(nome: string, role: string, cron_expr: string | null): CoordAgent {
     enabled: true,
     archived_at: null,
     model: null,
+    current_ref: null,
+    current_title: null,
+    recent_done: [],
   };
 }
 
