@@ -1,0 +1,159 @@
+import { describe, it, expect } from "vitest";
+import type {
+  CoordTask,
+  HitlPrompt,
+} from "../src/components/coordination/coordinationApi";
+import {
+  deriveStatus,
+  statusGroup,
+  groupAndSortTasks,
+  formatStuckTime,
+  needYouCount,
+} from "../src/components/coordination/taskStatus";
+
+const baseTask = (over: Partial<CoordTask>): CoordTask => ({
+  number: 1,
+  title: "t",
+  state: "OPEN",
+  labels: [],
+  project: "p",
+  url: null,
+  source_ref: "agents-ia#1",
+  source_updated_at: null,
+  claim_status: null,
+  claim_agent: null,
+  claim_mechanism: null,
+  claimed_at: null,
+  claim_model: null,
+  run_status: null,
+  run_started_at: null,
+  run_ended_at: null,
+  run_agent: null,
+  run_model: null,
+  ...over,
+});
+
+const pendingPrompt = (ref: string): HitlPrompt => ({
+  id: 1,
+  source_ref: ref,
+  session_id: null,
+  agent: "a",
+  project: "p",
+  question: "q?",
+  context: null,
+  kind: "yesno",
+  options: null,
+  status: "pending",
+  answer: null,
+  created_at: "2026-06-01T00:00:00Z",
+  expires_at: null,
+  issue_title: null,
+  issue_url: null,
+});
+
+describe("deriveStatus", () => {
+  it("CLOSED → done", () => {
+    expect(deriveStatus(baseTask({ state: "CLOSED" }), [])).toBe("done");
+  });
+  it("claim in_progress → running (precede pendente)", () => {
+    const t = baseTask({ claim_status: "in_progress", labels: ["hitl"] });
+    expect(deriveStatus(t, [pendingPrompt(t.source_ref)])).toBe("running");
+  });
+  it("run running → running", () => {
+    expect(deriveStatus(baseTask({ run_status: "running" }), [])).toBe("running");
+  });
+  it("prompt HITL pendente → pending", () => {
+    const t = baseTask({});
+    expect(deriveStatus(t, [pendingPrompt(t.source_ref)])).toBe("pending");
+  });
+  it("label hitl no GitHub → pending", () => {
+    expect(deriveStatus(baseTask({ labels: ["hitl"] }), [])).toBe("pending");
+  });
+  it("claim claimed (não iniciado) → waiting_agent", () => {
+    expect(deriveStatus(baseTask({ claim_status: "claimed" }), [])).toBe(
+      "waiting_agent",
+    );
+  });
+  it("run error sem claim ativo → error", () => {
+    expect(deriveStatus(baseTask({ run_status: "error" }), [])).toBe("error");
+  });
+  it("run timeout → error", () => {
+    expect(deriveStatus(baseTask({ run_status: "timeout" }), [])).toBe("error");
+  });
+  it("OPEN triada (afk) sem claim → todo", () => {
+    expect(deriveStatus(baseTask({ labels: ["afk"] }), [])).toBe("todo");
+  });
+  it("OPEN sem label de área → open", () => {
+    expect(deriveStatus(baseTask({ labels: [] }), [])).toBe("open");
+  });
+});
+
+describe("statusGroup", () => {
+  it("pending e error → need_you", () => {
+    expect(statusGroup("pending")).toBe("need_you");
+    expect(statusGroup("error")).toBe("need_you");
+  });
+  it("running e waiting_agent → in_progress", () => {
+    expect(statusGroup("running")).toBe("in_progress");
+    expect(statusGroup("waiting_agent")).toBe("in_progress");
+  });
+  it("todo e open → queue", () => {
+    expect(statusGroup("todo")).toBe("queue");
+    expect(statusGroup("open")).toBe("queue");
+  });
+  it("done → history", () => {
+    expect(statusGroup("done")).toBe("history");
+  });
+});
+
+describe("groupAndSortTasks", () => {
+  it("separa em 3 grupos vivos, exclui done, ordena por número asc", () => {
+    const tasks = [
+      baseTask({ number: 30, state: "CLOSED", source_ref: "r30" }), // done → fora
+      baseTask({ number: 20, run_status: "error", source_ref: "r20" }), // need_you
+      baseTask({ number: 5, run_status: "error", source_ref: "r5" }), // need_you
+      baseTask({ number: 10, claim_status: "in_progress", source_ref: "r10" }), // in_progress
+      baseTask({ number: 7, labels: ["afk"], source_ref: "r7" }), // queue
+    ];
+    const g = groupAndSortTasks(tasks, []);
+    expect(g.need_you.map((t) => t.number)).toEqual([5, 20]);
+    expect(g.in_progress.map((t) => t.number)).toEqual([10]);
+    expect(g.queue.map((t) => t.number)).toEqual([7]);
+  });
+});
+
+describe("formatStuckTime", () => {
+  const now = Date.parse("2026-06-01T12:00:00Z");
+  it("menos de 1h", () => {
+    const r = formatStuckTime("2026-06-01T11:30:00Z", now, 4 * 3600_000);
+    expect(r.label).toBe("30min");
+    expect(r.overdue).toBe(false);
+  });
+  it("horas", () => {
+    expect(formatStuckTime("2026-06-01T10:00:00Z", now, 4 * 3600_000).label).toBe(
+      "2h",
+    );
+  });
+  it("dias + overdue quando passa do limite", () => {
+    const r = formatStuckTime("2026-05-31T06:00:00Z", now, 4 * 3600_000);
+    expect(r.label).toBe("1d 6h");
+    expect(r.overdue).toBe(true);
+  });
+  it("timestamp nulo → label vazio, não overdue", () => {
+    expect(formatStuckTime(null, now, 4 * 3600_000)).toEqual({
+      label: "",
+      overdue: false,
+    });
+  });
+});
+
+describe("needYouCount", () => {
+  it("conta pending + error", () => {
+    const tasks = [
+      baseTask({ run_status: "error", source_ref: "r1" }),
+      baseTask({ labels: ["hitl"], source_ref: "r2" }),
+      baseTask({ claim_status: "in_progress", source_ref: "r3" }),
+    ];
+    expect(needYouCount(tasks, [])).toBe(2);
+  });
+});
