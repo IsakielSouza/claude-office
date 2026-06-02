@@ -507,3 +507,9 @@ def test_priority_rejects_bad_rank() -> None:
         "/api/v1/coordination/tasks/agents-ia%23294/priority", json={"rank": "x"}
     )
     assert r.status_code == 422
+
+
+def test_approve_rejects_ref_without_number() -> None:
+    client = TestClient(app)
+    r = client.post("/api/v1/coordination/tasks/semnumero/approve")
+    assert r.status_code == 400

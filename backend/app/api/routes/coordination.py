@@ -179,6 +179,32 @@ async def set_task_priority(source_ref: str, body: PriorityBody) -> dict[str, An
     return {"source_ref": source_ref, "label": add}
 
 
+# Aprovar uma pendência que é label `hitl` no GitHub (gate pré-dispatch, sem
+# pergunta estruturada): libera pro agente trocando hitl→afk. O triador então
+# briefa e o gerente despacha (vira "Aguardando agente"). SPEC §5.
+@router.post(
+    "/tasks/{source_ref}/approve", dependencies=[Depends(enforce_write_rate_limit)]
+)
+async def approve_task(source_ref: str) -> dict[str, Any]:
+    num = _ref_to_issue_number(source_ref)
+    if num is None:
+        raise HTTPException(
+            status_code=400, detail={"error": "source_ref sem número de issue"}
+        )
+    proc = await asyncio.create_subprocess_exec(
+        "gh", "issue", "edit", str(num), "--repo", _AGENTS_IA_REPO,
+        "--remove-label", "hitl", "--add-label", "afk",
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, err = await proc.communicate()
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail={"error": "gh falhou", "stderr": err.decode()[:300]},
+        )
+    return {"source_ref": source_ref, "action": "released", "labels": "hitl→afk"}
+
+
 class CreateTaskBody(BaseModel):
     title: str
     body: str = ""
