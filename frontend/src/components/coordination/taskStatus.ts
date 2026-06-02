@@ -20,6 +20,8 @@ export function deriveStatus(
   hitlPrompts: HitlPrompt[],
 ): TaskStatus {
   if (task.state === "CLOSED") return "done";
+  // Removida da fila pelo CEO (cockpit): sai dos grupos vivos como done/history.
+  if (task.labels.includes("parked")) return "done";
 
   const claim = task.claim_status;
   if (claim === "in_progress" || task.run_status === "running") return "running";

@@ -205,8 +205,10 @@ async def approve_task(source_ref: str) -> dict[str, Any]:
     return {"source_ref": source_ref, "action": "released", "labels": "hitl→afk"}
 
 
-# Remover da fila de dispatch: tira o label `afk` (a issue sai da fila; volta a
-# needs-label pro gerente reclassificar). Reusa o padrão gh dos endpoints acima.
+# Remover da fila: marca a issue com `parked` (o cockpit a exclui dos grupos vivos,
+# como faz com CLOSED). NÃO basta tirar `afk` — uma issue com `area:*` continua na
+# fila como `todo`/`open` (bug #33). `parked` tira de vez do cockpit; reversível
+# (basta remover o label). O triador deve pular `parked` (follow-up, janela).
 @router.post(
     "/tasks/{source_ref}/remove", dependencies=[Depends(enforce_write_rate_limit)]
 )
@@ -218,7 +220,7 @@ async def remove_from_queue(source_ref: str) -> dict[str, Any]:
         )
     proc = await asyncio.create_subprocess_exec(
         "gh", "issue", "edit", str(num), "--repo", _AGENTS_IA_REPO,
-        "--remove-label", "afk",
+        "--add-label", "parked",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     _, err = await proc.communicate()
@@ -227,7 +229,7 @@ async def remove_from_queue(source_ref: str) -> dict[str, Any]:
             status_code=502,
             detail={"error": "gh falhou", "stderr": err.decode()[:300]},
         )
-    return {"source_ref": source_ref, "action": "removed_from_queue"}
+    return {"source_ref": source_ref, "action": "parked"}
 
 
 class CreateTaskBody(BaseModel):
