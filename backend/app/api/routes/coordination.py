@@ -82,10 +82,14 @@ SELECT i.number, i.title, i.state, i.labels, i.project, i.url,
        aw.agent   AS claim_agent,
        aw.mechanism AS claim_mechanism,
        aw.claimed_at,
-       lr.run_status, lr.run_started_at, lr.run_ended_at, lr.run_agent
+       ca.model   AS claim_model,
+       lr.run_status, lr.run_started_at, lr.run_ended_at, lr.run_agent,
+       ra.model   AS run_model
 FROM issues i
 LEFT JOIN active_work aw ON aw.source_ref = i.source_ref
 LEFT JOIN last_run   lr ON lr.source_ref = i.source_ref
+LEFT JOIN agents     ca ON ca.nome = aw.agent
+LEFT JOIN agents     ra ON ra.nome = lr.run_agent
 WHERE (CAST(:state AS text)   IS NULL OR i.state   = CAST(:state AS text))
   AND (CAST(:project AS text) IS NULL OR i.project = CAST(:project AS text))
   AND (CAST(:label AS text)   IS NULL OR CAST(:label AS text) = ANY(i.labels))

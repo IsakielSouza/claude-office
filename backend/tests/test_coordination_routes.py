@@ -464,3 +464,17 @@ def test_hitl_degrade_503_when_db_down() -> None:
         assert r.status_code == 503
     finally:
         app.dependency_overrides.pop(get_coordination_db, None)
+
+
+@pytest.mark.skipif(not _coord_up(), reason=":5433 coordination DB indisponível")
+def test_tasks_expose_agent_model_keys() -> None:
+    """/tasks devolve claim_model e run_model (LEFT JOIN agents)."""
+    client = TestClient(app)
+    resp = client.get("/api/v1/coordination/tasks?limit=1")
+    assert resp.status_code == 200
+    tasks = resp.json()["tasks"]
+    if not tasks:
+        pytest.skip("sem tasks no :5433 para inspecionar o shape")
+    row = tasks[0]
+    assert "claim_model" in row
+    assert "run_model" in row
