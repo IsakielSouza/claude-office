@@ -65,7 +65,15 @@ export interface GroupedTasks {
 
 const byNumberAsc = (a: CoordTask, b: CoordTask): number => a.number - b.number;
 
-/** Agrupa as tasks vivas (exclui done) e ordena cada grupo por nº crescente. */
+/** Posição na fila: fila:topo primeiro (0), fila:fim por último (2), resto no meio (1). */
+export function queueRank(t: CoordTask): number {
+  if (t.labels.includes("fila:topo")) return 0;
+  if (t.labels.includes("fila:fim")) return 2;
+  return 1;
+}
+
+/** Agrupa as tasks vivas (exclui done). need_you/in_progress por nº; a FILA segue
+ *  a ordem de despacho (fila:topo → meio → fila:fim), depois nº — pra numeração. */
 export function groupAndSortTasks(
   tasks: CoordTask[],
   hitlPrompts: HitlPrompt[],
@@ -78,7 +86,7 @@ export function groupAndSortTasks(
   }
   out.need_you.sort(byNumberAsc);
   out.in_progress.sort(byNumberAsc);
-  out.queue.sort(byNumberAsc);
+  out.queue.sort((a, b) => queueRank(a) - queueRank(b) || a.number - b.number);
   return out;
 }
 

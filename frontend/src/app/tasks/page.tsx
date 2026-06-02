@@ -331,7 +331,7 @@ export default function TasksPage(): React.ReactNode {
       return n;
     });
 
-  const renderRow = (t: CoordTask) => {
+  const renderRow = (t: CoordTask, queuePos?: number) => {
     const status = deriveStatus(t, prompts);
     const stuck = formatStuckTime(stuckSince(t, status), nowMs, DEFAULT_SLA_MS);
     const am = agentModel(t, status);
@@ -341,6 +341,14 @@ export default function TasksPage(): React.ReactNode {
         key={t.source_ref}
         className="flex items-center gap-3 px-3 py-3 border-t border-slate-900 hover:bg-slate-900/40"
       >
+        {queuePos !== undefined && (
+          <span
+            className="text-xs font-bold text-slate-200 bg-slate-700 rounded px-1.5 py-0.5 shrink-0 w-8 text-center"
+            title="posição na fila"
+          >
+            {queuePos}
+          </span>
+        )}
         {statusGroup(status) === "need_you" && (
           <input
             type="checkbox"
@@ -452,6 +460,7 @@ export default function TasksPage(): React.ReactNode {
     tasks: CoordTask[],
     accent: string,
     batch = false,
+    numbered = false,
   ) => {
     const refs = tasks.map((t) => t.source_ref);
     const selCount = refs.filter((r) => selected.has(r)).length;
@@ -495,7 +504,7 @@ export default function TasksPage(): React.ReactNode {
           {tasks.length === 0 ? (
             <p className="px-3 py-4 text-slate-600 text-sm">{tr("tasks.empty")}</p>
           ) : (
-            tasks.map(renderRow)
+            tasks.map((t, i) => renderRow(t, numbered ? i + 1 : undefined))
           )}
         </div>
       </section>
@@ -617,7 +626,13 @@ export default function TasksPage(): React.ReactNode {
               "text-sky-400",
             )}
           {!hidden.has("queue") &&
-            renderGroup("tasks.group.queue", groups.queue, "text-slate-400")}
+            renderGroup(
+              "tasks.group.queue",
+              groups.queue,
+              "text-slate-400",
+              false,
+              true,
+            )}
         </>
       )}
 
