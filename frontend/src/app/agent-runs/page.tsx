@@ -54,7 +54,7 @@ export default function AgentRunsPage(): React.ReactNode {
           <span className="text-orange-500">Claude</span> Coordenação
         </h1>
         <Link
-          href="/"
+          href="/office"
           className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200"
         >
           <ArrowLeft size={14} /> Voltar ao escritório

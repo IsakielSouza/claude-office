@@ -6,12 +6,13 @@ import { NeedYouIndicator } from "./NeedYouIndicator";
 import { PausedAgentsIndicator } from "./PausedAgentsIndicator";
 
 const TABS = [
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/console", label: "Console" },
   { href: "/agents", label: "Agentes" },
   { href: "/agendas", label: "Agendas" },
   { href: "/tasks", label: "Tasks" },
   { href: "/agent-runs", label: "Histórico" },
-  { href: "/dashboard", label: "Dashboard" },
+  { href: "/office", label: "Escritório" },
   { href: "/ajuda", label: "Ajuda" },
 ];
 

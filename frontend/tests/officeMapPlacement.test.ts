@@ -27,6 +27,8 @@ function agent(nome: string, role: string, status = "idle"): CoordAgent {
     current_ref: null,
     current_title: null,
     recent_done: [],
+    effort_level: null,
+    thinking_enabled: null,
   };
 }
 

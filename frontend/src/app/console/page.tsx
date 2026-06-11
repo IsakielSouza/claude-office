@@ -126,7 +126,7 @@ export default function ConsolePage(): React.ReactNode {
           <span className="text-[#4b5573]">(Humano)</span>
         </span>
         <Link
-          href="/"
+          href="/office"
           className="text-xs text-[#4b5573] hover:text-[#c7d0e0] flex items-center gap-1"
         >
           <ArrowLeft size={13} /> escritório
