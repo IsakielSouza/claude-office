@@ -77,36 +77,61 @@ export function AgendaEditor({
   }
 
   return (
-    <div className="rounded-lg border border-neutral-700 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="font-medium flex items-center gap-2">
-          <Clock size={16} /> {agent.nome}{" "}
-          <span className="text-neutral-400">({agent.role})</span>
+    <div
+      className="rounded-2xl border p-4 space-y-3 backdrop-blur-md bg-[rgba(20,14,38,0.6)]"
+      style={{
+        borderColor: enabled ? "rgba(52,211,153,0.4)" : "rgba(168,85,247,0.25)",
+        borderLeft: `3px solid ${enabled ? "#34d399" : "#6b6485"}`,
+      }}
+    >
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <span className="font-semibold flex items-center gap-2">
+          <Clock size={16} className="text-[#a855f7]" /> {agent.nome}{" "}
+          <span className="text-[#9a93b3] text-sm">({agent.role})</span>
         </span>
-        <label className="text-sm flex items-center gap-1">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-          />
-          ativo
-        </label>
+        {/* Toggle ligado/desligado — controla agent.enabled (liga/desliga o cron) */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            onClick={() => setEnabled((v) => !v)}
+            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+            style={{
+              background: enabled ? "#34d399" : "rgba(255,255,255,0.1)",
+              boxShadow: enabled ? "0 0 12px rgba(52,211,153,0.5)" : undefined,
+            }}
+          >
+            <span
+              className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
+              style={{ transform: enabled ? "translateX(24px)" : "translateX(4px)" }}
+            />
+          </button>
+          <span
+            className="text-sm font-semibold w-16"
+            style={{ color: enabled ? "#34d399" : "#9a93b3" }}
+          >
+            {enabled ? "ligado" : "desligado"}
+          </span>
+        </div>
       </div>
 
-      <div className="flex gap-3 text-sm">
-        <label>
+      <div className="flex gap-4 text-sm text-[#9a93b3]">
+        <label className="flex items-center gap-1.5 cursor-pointer">
           <input
             type="radio"
             checked={mode === "times"}
             onChange={() => setMode("times")}
+            className="accent-[#a855f7]"
           />{" "}
           Horários fixos
         </label>
-        <label>
+        <label className="flex items-center gap-1.5 cursor-pointer">
           <input
             type="radio"
             checked={mode === "interval"}
             onChange={() => setMode("interval")}
+            className="accent-[#a855f7]"
           />{" "}
           Intervalo
         </label>
@@ -117,11 +142,12 @@ export function AgendaEditor({
           {hours.map((h) => (
             <span
               key={h}
-              className="rounded bg-neutral-800 px-2 py-1 text-sm flex items-center gap-1"
+              className="rounded-lg border border-[rgba(168,85,247,0.25)] bg-white/5 px-2.5 py-1 text-sm flex items-center gap-1.5"
             >
               {String(h).padStart(2, "0")}:{String(minute).padStart(2, "0")}
               <button
                 onClick={() => setHours((hs) => hs.filter((x) => x !== h))}
+                className="text-[#9a93b3] hover:text-[#ec4899]"
               >
                 <X size={12} />
               </button>
@@ -131,22 +157,25 @@ export function AgendaEditor({
             value={newTime}
             onChange={(e) => setNewTime(e.target.value)}
             placeholder="22:00"
-            className="w-20 rounded bg-neutral-900 px-2 py-1 text-sm"
+            className="w-20 rounded-lg border border-[rgba(168,85,247,0.25)] bg-white/5 px-2 py-1 text-sm outline-none focus:border-[#a855f7]"
           />
-          <button onClick={addTime} className="flex items-center gap-1 text-sm">
+          <button
+            onClick={addTime}
+            className="flex items-center gap-1 text-sm text-[#38bdf8] hover:text-[#7dd3fc]"
+          >
             <Plus size={14} /> adicionar
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-sm text-[#9a93b3]">
           a cada
           <select
             value={everyMin}
             onChange={(e) => setEveryMin(Number(e.target.value))}
-            className="bg-neutral-900 rounded px-1"
+            className="bg-white/5 border border-[rgba(168,85,247,0.25)] rounded-lg px-1.5 py-1 text-[#ece9f5]"
           >
             {STEPS.map((s) => (
-              <option key={s} value={s}>
+              <option key={s} value={s} className="bg-[#0d0a18]">
                 {s}
               </option>
             ))}
@@ -158,7 +187,7 @@ export function AgendaEditor({
             max={23}
             value={startHour}
             onChange={(e) => setStartHour(Number(e.target.value))}
-            className="w-14 bg-neutral-900 rounded px-1"
+            className="w-14 bg-white/5 border border-[rgba(168,85,247,0.25)] rounded-lg px-1.5 py-1"
           />
           às
           <input
@@ -167,26 +196,27 @@ export function AgendaEditor({
             max={23}
             value={endHour}
             onChange={(e) => setEndHour(Number(e.target.value))}
-            className="w-14 bg-neutral-900 rounded px-1"
+            className="w-14 bg-white/5 border border-[rgba(168,85,247,0.25)] rounded-lg px-1.5 py-1"
           />
           h
         </div>
       )}
 
-      <div className="text-xs text-neutral-400 font-mono">
-        cron gerado: {cron}
+      <div className="text-xs text-[#9a93b3] font-mono">
+        cron gerado: <span className="text-[#38bdf8]">{cron}</span>
       </div>
       {duplicateRole && (
-        <div className="text-xs text-amber-400">
+        <div className="text-xs text-[#fbbf24]">
           ⚠ outro agente com a mesma função já tem agenda — isso gera uma linha
           de cron duplicada.
         </div>
       )}
-      {err && <div className="text-xs text-red-400">{err}</div>}
+      {err && <div className="text-xs text-[#ec4899]">{err}</div>}
       <button
         onClick={save}
         disabled={busy}
-        className="rounded bg-blue-600 px-3 py-1 text-sm disabled:opacity-50"
+        className="rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 shadow-[0_0_18px_rgba(168,85,247,0.4)] transition-shadow hover:shadow-[0_0_26px_rgba(168,85,247,0.65)]"
+        style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
       >
         {busy ? "salvando…" : "salvar agenda"}
       </button>
