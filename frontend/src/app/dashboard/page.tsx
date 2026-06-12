@@ -146,6 +146,9 @@ export default function DashboardPage(): React.ReactNode {
   const [search, setSearch] = useState("");
   const [selectedPrompt, setSelectedPrompt] = useState<HitlPrompt | null>(null);
   const [respondingTask, setRespondingTask] = useState<CoordTask | null>(null);
+  // refs respondidas no cockpit mas cujo mirror :5433 ainda não sincronizou (lag
+  // até 5min). Override otimista: saem de "precisa de você" na hora.
+  const [respondedRefs, setRespondedRefs] = useState<Set<string>>(new Set());
 
   const qs = useMemo(() => `?period=${period}`, [period]);
 
@@ -174,9 +177,14 @@ export default function DashboardPage(): React.ReactNode {
   const statusByRef = useMemo(() => {
     const m = new Map<string, TaskStatus>();
     if (!data) return m;
-    for (const t of data.tasks) m.set(t.source_ref, deriveStatus(t, data.hitl));
+    for (const t of data.tasks) {
+      let st = deriveStatus(t, data.hitl);
+      // override otimista: já respondida no cockpit, mirror ainda sincronizando.
+      if (st === "pending" && respondedRefs.has(t.source_ref)) st = "todo";
+      m.set(t.source_ref, st);
+    }
     return m;
-  }, [data]);
+  }, [data, respondedRefs]);
 
   const groupCounts = useMemo(() => {
     const c = { need_you: 0, in_progress: 0, queue: 0, history: 0 };
@@ -751,6 +759,8 @@ export default function DashboardPage(): React.ReactNode {
         onClose={() => setSelectedPrompt(null)}
         onSubmit={async (id, answer) => {
           await answerHitl(id, answer);
+          const ref = selectedPrompt?.source_ref;
+          if (ref) setRespondedRefs((p) => new Set(p).add(ref));
           await refetch();
         }}
       />
@@ -762,6 +772,10 @@ export default function DashboardPage(): React.ReactNode {
         task={respondingTask}
         onClose={() => setRespondingTask(null)}
         onDone={async () => {
+          if (respondingTask)
+            setRespondedRefs((p) =>
+              new Set(p).add(respondingTask.source_ref),
+            );
           setRespondingTask(null);
           await refetch();
         }}
