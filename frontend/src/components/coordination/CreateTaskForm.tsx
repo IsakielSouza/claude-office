@@ -47,15 +47,31 @@ export function CreateTaskForm({
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [disposicao, setDisposicao] = useState<Disposicao>("");
-  const [area, setArea] = useState("");
+  const [areas, setAreas] = useState<Set<string>>(new Set());
   const [extras, setExtras] = useState<Set<string>>(new Set());
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const builtLabels = [disposicao, area, ...Array.from(extras)].filter(Boolean);
-  const canSubmit = Boolean(title.trim()) && Boolean(disposicao) && Boolean(area);
+  const builtLabels = [
+    disposicao,
+    ...Array.from(areas),
+    ...Array.from(extras),
+  ].filter(Boolean);
+  const canSubmit =
+    Boolean(title.trim()) && Boolean(disposicao) && areas.size > 0;
+  // afk multi-área: cada dev-loop daquela área puxa a MESMA issue → colisão.
+  const afkMulti = disposicao === "afk" && areas.size > 1;
+
+  function toggleArea(val: string): void {
+    setAreas((prev) => {
+      const next = new Set(prev);
+      if (next.has(val)) next.delete(val);
+      else next.add(val);
+      return next;
+    });
+  }
 
   function toggleExtra(val: string): void {
     setExtras((prev) => {
@@ -80,14 +96,16 @@ export function CreateTaskForm({
       setError("selecione uma disposição (afk / hitl / epic)");
       return;
     }
-    if (!area) {
-      setError("selecione a área do projeto");
+    if (areas.size === 0) {
+      setError("selecione ao menos uma área");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      const project = AREA_OPTIONS.find((a) => a.value === area)?.project;
+      // prefixo [projeto] derivado da 1ª área (multi: usa a primeira como dona).
+      const firstArea = Array.from(areas)[0];
+      const project = AREA_OPTIONS.find((a) => a.value === firstArea)?.project;
       const r = await createTask({
         title: title.trim(),
         agent: project, // backend prefixa o título com [project]
@@ -98,7 +116,7 @@ export function CreateTaskForm({
       setTitle("");
       setBody("");
       setDisposicao("");
-      setArea("");
+      setAreas(new Set());
       setExtras(new Set());
       onCreated?.();
     } catch (e) {
@@ -166,23 +184,36 @@ export function CreateTaskForm({
         </div>
       </div>
 
-      {/* Área / Projeto (obrigatória) */}
+      {/* Área / Projeto (obrigatória, pode ser MAIS DE UMA) */}
       <div>
         <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">
-          Área / Projeto <span className="text-rose-400">*</span>
+          Área / Projeto <span className="text-rose-400">*</span>{" "}
+          <span className="text-slate-600 normal-case">(pode selecionar mais de uma)</span>
         </div>
-        <select
-          value={area}
-          onChange={(e) => setArea(e.target.value)}
-          className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm w-full"
-        >
-          <option value="">— Selecione a área —</option>
+        <div className="flex gap-2 flex-wrap">
           {AREA_OPTIONS.map((a) => (
-            <option key={a.value} value={a.value}>
-              {a.value} — {a.label}
-            </option>
+            <button
+              key={a.value}
+              type="button"
+              onClick={() => toggleArea(a.value)}
+              title={a.label}
+              className={`px-2.5 py-1 rounded text-xs font-bold border transition-colors ${
+                areas.has(a.value)
+                  ? "border-sky-500 text-sky-300 bg-sky-500/15"
+                  : "border-slate-700 text-slate-400 hover:border-slate-500"
+              }`}
+            >
+              {a.value}
+            </button>
           ))}
-        </select>
+        </div>
+        {afkMulti && (
+          <div className="text-xs text-amber-400 mt-1">
+            ⚠ <b>afk com mais de uma área</b>: o dev-loop de CADA área vai puxar
+            esta issue (trabalho duplicado). Prefira <b>1 área</b>, ou marque{" "}
+            <b>epic</b> se for guarda-chuva.
+          </div>
+        )}
       </div>
 
       {/* Labels extras */}
