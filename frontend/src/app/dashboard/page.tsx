@@ -20,6 +20,7 @@ import {
   fetchAgents,
   fetchHitlPending,
   fetchFlowHealth,
+  fetchOpenPrs,
   answerHitl,
   respondTask,
   type CoordDashboard,
@@ -27,6 +28,7 @@ import {
   type CoordAgent,
   type HitlPrompt,
   type CoordFlowHealth,
+  type CoordOpenPrs,
 } from "@/components/coordination/coordinationApi";
 import {
   deriveStatus,
@@ -44,6 +46,7 @@ interface DashboardBundle {
   agents: CoordAgent[];
   hitl: HitlPrompt[];
   flow: CoordFlowHealth;
+  prs: CoordOpenPrs;
 }
 
 const STATUS_FILTERS = [
@@ -149,25 +152,29 @@ export default function DashboardPage(): React.ReactNode {
   // refs respondidas no cockpit mas cujo mirror :5433 ainda não sincronizou (lag
   // até 5min). Override otimista: saem de "precisa de você" na hora.
   const [respondedRefs, setRespondedRefs] = useState<Set<string>>(new Set());
+  const [showPrs, setShowPrs] = useState(false);
 
   const qs = useMemo(() => `?period=${period}`, [period]);
 
   const { data, loading, unavailable, error, refetch } =
     useCoordinationPoll<DashboardBundle>(
       async () => {
-        const [dashboard, tasksRes, agentsRes, hitlRes, flow] = await Promise.all([
-          fetchDashboard(qs),
-          fetchTasks(),
-          fetchAgents(),
-          fetchHitlPending(),
-          fetchFlowHealth(24),
-        ]);
+        const [dashboard, tasksRes, agentsRes, hitlRes, flow, prs] =
+          await Promise.all([
+            fetchDashboard(qs),
+            fetchTasks(),
+            fetchAgents(),
+            fetchHitlPending(),
+            fetchFlowHealth(24),
+            fetchOpenPrs(),
+          ]);
         return {
           dashboard,
           tasks: tasksRes.tasks,
           agents: agentsRes.agents,
           hitl: hitlRes.prompts,
           flow,
+          prs,
         };
       },
       [qs],
@@ -410,12 +417,18 @@ export default function DashboardPage(): React.ReactNode {
       {data && !unavailable && (
         <>
           {/* Stat cards */}
-          <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-5 mb-7">
+          <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-5 mb-7">
             <StatCard label="Agentes ativos" value={agentsActive} accent="#a855f7" glow />
             <StatCard label="Em progresso" value={groupCounts.in_progress} accent="#38bdf8" />
             <StatCard label="Na fila" value={groupCounts.queue} accent="#ec4899" />
             <StatCard label="Concluídas hoje" value={closedToday} accent="#34d399" />
             <StatCard label="Precisa de você" value={groupCounts.need_you} accent="#fbbf24" />
+            <StatCard
+              label="PRs abertos ↗"
+              value={data.prs.total}
+              accent="#22d3ee"
+              onClick={() => setShowPrs(true)}
+            />
           </section>
 
           {/* Summary bar */}
@@ -780,26 +793,133 @@ export default function DashboardPage(): React.ReactNode {
           await refetch();
         }}
       />
+
+      {/* Modal de PRs abertos por projeto (estado vivo do GitHub) */}
+      {showPrs && (
+        <PrModal data={data?.prs ?? null} onClose={() => setShowPrs(false)} />
+      )}
     </main>
   );
 }
 
 /* ---------------- subcomponentes ---------------- */
 
+function PrModal({
+  data,
+  onClose,
+}: {
+  data: CoordOpenPrs | null;
+  onClose: () => void;
+}): React.ReactNode {
+  const groups = data?.by_project ?? [];
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl border border-[rgba(34,211,238,0.35)] bg-[rgba(20,14,38,0.97)] p-6 shadow-[0_0_40px_rgba(34,211,238,0.2)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-[#e8e4f3]">
+            PRs abertos{" "}
+            <span className="text-[#22d3ee]">{data?.total ?? 0}</span>
+            <span className="text-[#9a93b3] text-sm font-normal"> · por projeto</span>
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-[#9a93b3] hover:text-white text-xl leading-none"
+            aria-label="Fechar"
+          >
+            ×
+          </button>
+        </div>
+
+        {data?.error && (
+          <p className="text-amber-400 text-sm mb-3">
+            GitHub indisponível — dados podem estar desatualizados.
+          </p>
+        )}
+
+        {groups.length === 0 ? (
+          <p className="text-[#9a93b3] text-sm py-6 text-center">
+            Nenhum PR aberto. 🎉
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {groups.map((g) => (
+              <div key={g.repo}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[#e8e4f3] font-semibold">{g.project}</span>
+                  <span className="text-[#6b6485] text-xs">{g.repo}</span>
+                  <span className="ml-auto text-[#22d3ee] font-bold text-sm">
+                    {g.count}
+                  </span>
+                </div>
+                <ul className="space-y-1.5">
+                  {g.prs.map((pr) => (
+                    <li key={pr.url}>
+                      <a
+                        href={pr.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block rounded-lg px-3 py-2 bg-[rgba(34,211,238,0.06)] border border-[rgba(34,211,238,0.15)] hover:border-[rgba(34,211,238,0.45)] transition text-sm"
+                      >
+                        <span className="text-[#22d3ee] font-mono">#{pr.number}</span>{" "}
+                        <span className="text-[#cfc9e0]">{pr.title}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+        {data?.stale && (
+          <p className="text-[#6b6485] text-[11px] mt-4 text-right">
+            cache ~45s
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StatCard({
   label,
   value,
   accent,
   glow = false,
+  onClick,
 }: {
   label: string;
   value: number | string;
   accent: string;
   glow?: boolean;
+  onClick?: () => void;
 }): React.ReactNode {
+  const clickable = typeof onClick === "function";
   return (
     <div
-      className="rounded-2xl px-5 py-4 backdrop-blur-md border border-[rgba(168,85,247,0.25)] bg-[rgba(20,14,38,0.6)] relative overflow-hidden"
+      onClick={onClick}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+      className={`rounded-2xl px-5 py-4 backdrop-blur-md border border-[rgba(168,85,247,0.25)] bg-[rgba(20,14,38,0.6)] relative overflow-hidden${
+        clickable
+          ? " cursor-pointer transition hover:border-[rgba(34,211,238,0.55)] hover:bg-[rgba(20,14,38,0.85)]"
+          : ""
+      }`}
       style={glow ? { boxShadow: "0 0 22px rgba(168,85,247,0.25)" } : undefined}
     >
       <div className="text-[#9a93b3] text-[13px] mb-2.5">{label}</div>

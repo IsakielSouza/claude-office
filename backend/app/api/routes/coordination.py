@@ -827,6 +827,78 @@ async def flow_health(
         raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
 
 
+# ── /open-prs ─────────────────────────────────────────────────────────────────
+# PRs abertos em TODOS os repos de código do ecossistema (org hmtrack), numa
+# única chamada `gh search prs`. NÃO vive no mirror :5433 (PR é estado do GitHub),
+# então é fetch ao vivo via gh, com cache curto pra não martelar a API a cada poll
+# do dashboard. Degrade gracioso: gh fora → total=0, by_project=[] (nunca 503).
+_PR_REPO_TO_PROJECT: dict[str, str] = {
+    "hmtrack-front": "front",
+    "hmtrack-api-py": "api",
+    "hmtrack-trackers": "trackers",
+    "hmtrack-alert-system": "alert-system",
+    "hmtrack-app": "mobile",
+}
+_PR_CACHE: dict[str, Any] = {"at": 0.0, "data": None}
+_PR_CACHE_TTL = 45.0  # s
+
+
+async def _fetch_open_prs() -> dict[str, Any]:
+    """gh search prs --owner hmtrack --state open, agrupado por repo→projeto."""
+    proc = await asyncio.create_subprocess_exec(
+        "gh", "search", "prs", "--owner", "hmtrack", "--state", "open",
+        "--limit", "100",
+        "--json", "repository,number,title,url,createdAt",
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    out, err = await proc.communicate()
+    if proc.returncode != 0:
+        logger.warning("open-prs gh falhou: %s", err.decode()[:200])
+        return {"total": 0, "by_project": [], "stale": False, "error": "gh_failed"}
+    rows = cast(list[dict[str, Any]], json.loads(out.decode() or "[]"))
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        repo_field = cast("dict[str, Any] | None", r.get("repository"))
+        repo = str(repo_field.get("name", "?")) if repo_field else "?"
+        groups.setdefault(repo, []).append(
+            {
+                "number": r.get("number"),
+                "title": r.get("title", ""),
+                "url": r.get("url", ""),
+                "created_at": str(r.get("createdAt", "")),
+            }
+        )
+    ordered = sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    by_project: list[dict[str, Any]] = [
+        {
+            "repo": repo,
+            "project": _PR_REPO_TO_PROJECT.get(repo, repo),
+            "count": len(prs),
+            "prs": sorted(prs, key=lambda p: str(p.get("created_at", ""))),
+        }
+        for repo, prs in ordered
+    ]
+    return {"total": len(rows), "by_project": by_project, "stale": False}
+
+
+@router.get("/open-prs")
+async def open_prs() -> dict[str, Any]:
+    now = time.monotonic()
+    cached = _PR_CACHE["data"]
+    if cached is not None and (now - _PR_CACHE["at"]) < _PR_CACHE_TTL:
+        return {**cached, "stale": True}
+    try:
+        data = await _fetch_open_prs()
+        _PR_CACHE["data"] = data
+        _PR_CACHE["at"] = now
+        return data
+    except Exception as exc:  # gh ausente, JSON inválido, etc. — nunca derruba o dash
+        logger.warning("open-prs falhou: %s", exc)
+        if cached is not None:
+            return {**cached, "stale": True}
+        return {"total": 0, "by_project": [], "stale": False, "error": "unavailable"}
+
+
 # ── /agents (roster) ──────────────────────────────────────────────────────────
 # Roster (Camada 1) + status derivado de active_work + carga (requests na fila).
 # NB: o join active_work.agent = agents.nome depende da padronização do nome de

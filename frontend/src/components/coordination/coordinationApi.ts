@@ -268,6 +268,31 @@ export interface CoordFlowHealth {
 export const fetchFlowHealth = (hours = 24): Promise<CoordFlowHealth> =>
   getJson<CoordFlowHealth>(`/flow-health?hours=${hours}`);
 
+/** PR aberto (estado vivo do GitHub, fora do mirror). */
+export interface CoordOpenPr {
+  number: number;
+  title: string;
+  url: string;
+  created_at: string;
+}
+export interface CoordOpenPrsByProject {
+  repo: string;
+  project: string;
+  count: number;
+  prs: CoordOpenPr[];
+}
+export interface CoordOpenPrs {
+  total: number;
+  by_project: CoordOpenPrsByProject[];
+  stale?: boolean;
+  error?: string;
+}
+
+/** PRs abertos em todos os repos de código (org hmtrack). Fetch ao vivo via gh
+ *  no backend, com cache curto. Nunca lança 503 (degrade: total=0). */
+export const fetchOpenPrs = (): Promise<CoordOpenPrs> =>
+  getJson<CoordOpenPrs>(`/open-prs`);
+
 export const fetchAgents = (qs = ""): Promise<{ agents: CoordAgent[] }> =>
   getJson<{ agents: CoordAgent[] }>(`/agents${qs}`);
 
