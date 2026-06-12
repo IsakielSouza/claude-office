@@ -709,6 +709,74 @@ async def dashboard(
         raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
 
 
+# ── /flow-health ──────────────────────────────────────────────────────────────
+# Saúde do fluxo autônomo nas últimas N horas: vazão (runs), por status, tokens/
+# custo totais (cost_usd só preenche quando o dispatch captura — migration 014),
+# slots ativos do semáforo, e gasto por agente.
+_FLOW_RUNS_SQL = text(
+    "SELECT count(*) AS n FROM agent_runs "
+    "WHERE started_at >= now() - make_interval(hours => :hours)"
+)
+_FLOW_STATUS_SQL = text(
+    "SELECT status, count(*) AS n FROM agent_runs "
+    "WHERE started_at >= now() - make_interval(hours => :hours) GROUP BY status"
+)
+_FLOW_TOKENS_SQL = text(
+    "SELECT COALESCE(sum(input_tokens),0) AS input, "
+    "COALESCE(sum(output_tokens),0) AS output, "
+    "COALESCE(sum(cost_usd),0) AS cost_usd FROM agent_runs "
+    "WHERE started_at >= now() - make_interval(hours => :hours)"
+)
+_FLOW_SLOTS_SQL = text(
+    "SELECT count(*) AS n FROM work_claims "
+    "WHERE source='slot' AND status IN ('claimed','in_progress')"
+)
+_FLOW_BY_AGENT_SQL = text(
+    "SELECT agent, count(*) AS runs, COALESCE(sum(cost_usd),0) AS cost_usd "
+    "FROM agent_runs WHERE started_at >= now() - make_interval(hours => :hours) "
+    "AND agent IS NOT NULL GROUP BY agent "
+    "ORDER BY cost_usd DESC NULLS LAST, runs DESC LIMIT 20"
+)
+
+
+@router.get("/flow-health")
+async def flow_health(
+    db: Annotated[AsyncSession, Depends(get_coordination_db)],
+    hours: int = Query(24, ge=1, le=168),
+) -> dict[str, Any]:
+    try:
+        runs = (await db.execute(_FLOW_RUNS_SQL, {"hours": hours})).scalar_one()
+        by_status = {
+            r["status"]: r["n"]
+            for r in _row_dicts(await db.execute(_FLOW_STATUS_SQL, {"hours": hours}))
+        }
+        tok = (await db.execute(_FLOW_TOKENS_SQL, {"hours": hours})).mappings().one()
+        slots = (await db.execute(_FLOW_SLOTS_SQL)).scalar_one()
+        by_agent = _row_dicts(await db.execute(_FLOW_BY_AGENT_SQL, {"hours": hours}))
+        return {
+            "hours": hours,
+            "runs": int(runs),
+            "by_status": by_status,
+            "tokens": {
+                "input": int(tok["input"]),
+                "output": int(tok["output"]),
+                "cost_usd": float(tok["cost_usd"]),
+            },
+            "slots_active": int(slots),
+            "by_agent": [
+                {
+                    "agent": a["agent"],
+                    "runs": int(a["runs"]),
+                    "cost_usd": float(a["cost_usd"]),
+                }
+                for a in by_agent
+            ],
+        }
+    except (OperationalError, InterfaceError, DBAPIError) as exc:
+        logger.warning("coordination /flow-health unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
+
+
 # ── /agents (roster) ──────────────────────────────────────────────────────────
 # Roster (Camada 1) + status derivado de active_work + carga (requests na fila).
 # NB: o join active_work.agent = agents.nome depende da padronização do nome de
