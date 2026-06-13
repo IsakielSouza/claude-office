@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CoordAgent } from "./coordinationApi";
+import MeetingModal from "./MeetingModal";
 import {
   buildWalkable,
   findPath,
@@ -251,6 +252,9 @@ export function OfficeMap({
   const bgRef = useRef<HTMLCanvasElement>(null);
   const fgRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<Placed | null>(null);
+  // Reunião CEO→agente (#547): clicar EM CIMA de um agente abre o modal de reunião
+  // (cria hitl_prompt direcionado); clicar no chão = click-to-walk (#411).
+  const [meetAgent, setMeetAgent] = useState<CoordAgent | null>(null);
 
   // ── Click-to-walk (#411): o avatar do CEO anda (A*) até o tile clicado ──────
   const [ceo, setCeo] = useState<Tile>(CEO_SPAWN_TILE);
@@ -343,11 +347,25 @@ export function OfficeMap({
           height={H}
           className="absolute inset-0 w-full h-full cursor-pointer"
           style={{ imageRendering: "pixelated" }}
-          title="Clique para o CEO caminhar até o ponto"
+          title="Clique num agente p/ reunião; no chão p/ o CEO caminhar"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const mx = ((e.clientX - rect.left) / rect.width) * W;
             const my = ((e.clientY - rect.top) / rect.height) * H;
+            // clique EM CIMA de um agente → reunião; senão → CEO caminha (#547/#411)
+            let hit: Placed | null = null;
+            let best = 8;
+            for (const p of placed) {
+              const d = Math.hypot(p.cx - mx, p.cy - my);
+              if (d < best) {
+                best = d;
+                hit = p;
+              }
+            }
+            if (hit) {
+              setMeetAgent(hit.agent);
+              return;
+            }
             walkTo(Math.floor(mx / TILE), Math.floor(my / TILE));
           }}
           onMouseMove={(e) => {
@@ -415,6 +433,11 @@ export function OfficeMap({
           </div>
         )}
       </div>
+      <MeetingModal
+        key={meetAgent?.nome}
+        agent={meetAgent}
+        onClose={() => setMeetAgent(null)}
+      />
     </div>
   );
 }

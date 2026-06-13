@@ -355,6 +355,42 @@ export async function answerHitl(
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
+/** Poll de um prompt HITL específico — acompanha uma reunião até o agente responder. */
+export const fetchHitlPrompt = (id: number): Promise<{ prompt: HitlPrompt }> =>
+  getJson<{ prompt: HitlPrompt }>(`/hitl/${id}`);
+
+/**
+ * Reunião CEO→agente (#547): clicar num agente no mapa cria um hitl_prompt
+ * DIRECIONADO (kind=text, session_id='cockpit-meeting', 24h). O agente lê no próximo
+ * ciclo (`hitl.py inbox`) e responde FOREGROUND (`hitl.py reply`); a resposta volta
+ * ao cockpit via fetchHitlPrompt. Ponte HITL (decisão CEO "Opção B").
+ */
+export async function createMeeting(input: {
+  agent: string;
+  message: string;
+  project?: string;
+}): Promise<{ prompt: HitlPrompt }> {
+  const res = await fetch(`${BASE}/meeting`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (res.status === 503) throw new CoordUnavailableError();
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = (await res.json()) as {
+        detail?: { message?: string; error?: string };
+      };
+      msg = j?.detail?.message ?? j?.detail?.error ?? msg;
+    } catch {
+      /* mantém msg padrão */
+    }
+    throw new Error(msg);
+  }
+  return (await res.json()) as { prompt: HitlPrompt };
+}
+
 // ── Mutações de agentes (PATCH / archive / restore / delete) ─────────────────
 
 async function mutate<T>(

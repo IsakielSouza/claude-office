@@ -188,6 +188,64 @@ class TestCoordinationLive:
         finally:
             _delete_prompt(pid)
 
+    def test_get_hitl_one_404(self) -> None:
+        client = TestClient(app)
+        r = client.get("/api/v1/coordination/hitl/999999999")
+        assert r.status_code == 404
+
+    def test_get_hitl_one_shape(self) -> None:
+        pid = _seed_prompt("text")
+        try:
+            client = TestClient(app)
+            r = client.get(f"/api/v1/coordination/hitl/{pid}")
+            assert r.status_code == 200
+            p = r.json()["prompt"]
+            assert p["id"] == pid
+            assert {"status", "answer", "kind", "agent"} <= p.keys()
+        finally:
+            _delete_prompt(pid)
+
+    def test_create_meeting_success(self) -> None:
+        """Reunião CEO→agente (#547): POST /meeting cria hitl_prompt direcionado
+        pending (kind=text, marcador session_id='cockpit-meeting'). Requer migration
+        015 (USAGE em hitl_prompts_id_seq pro cockpit_rw)."""
+        client = TestClient(app)
+        r = client.post(
+            "/api/v1/coordination/meeting",
+            json={"agent": "DEV-OFFICE-1", "message": "ping de reunião e2e"},
+        )
+        assert r.status_code == 201, r.text
+        p = r.json()["prompt"]
+        pid = p["id"]
+        try:
+            assert p["agent"] == "DEV-OFFICE-1"
+            assert p["session_id"] == "cockpit-meeting"
+            assert p["kind"] == "text"
+            assert p["status"] == "pending"
+            assert p["question"] == "ping de reunião e2e"
+            # o GET de prompt único reflete a reunião recém-criada
+            g = client.get(f"/api/v1/coordination/hitl/{pid}")
+            assert g.status_code == 200
+            assert g.json()["prompt"]["question"] == "ping de reunião e2e"
+        finally:
+            _delete_prompt(pid)
+
+    def test_create_meeting_requires_message(self) -> None:
+        client = TestClient(app)
+        r = client.post(
+            "/api/v1/coordination/meeting",
+            json={"agent": "DEV-OFFICE-1", "message": "   "},
+        )
+        assert r.status_code == 422
+
+    def test_create_meeting_requires_agent(self) -> None:
+        client = TestClient(app)
+        r = client.post(
+            "/api/v1/coordination/meeting",
+            json={"agent": "  ", "message": "oi"},
+        )
+        assert r.status_code == 422
+
     def test_create_request_success(self) -> None:
         """Convocação do CEO: POST /requests grava na caixa (status queued)."""
         client = TestClient(app)
@@ -396,6 +454,22 @@ def test_create_agent_degrade_503_when_db_down() -> None:
         r = client.post(
             "/api/v1/coordination/agents",
             json={"nome": "__x__", "role": "__test__"},
+        )
+        assert r.status_code == 503
+    finally:
+        app.dependency_overrides.pop(get_coordination_db, None)
+
+
+def test_create_meeting_degrade_503_when_db_down() -> None:
+    async def _boom():  # type: ignore[no-untyped-def]
+        yield _BoomSession()
+
+    app.dependency_overrides[get_coordination_db] = _boom
+    try:
+        client = TestClient(app)
+        r = client.post(
+            "/api/v1/coordination/meeting",
+            json={"agent": "X", "message": "oi"},
         )
         assert r.status_code == 503
     finally:

@@ -1302,3 +1302,88 @@ async def answer_hitl(
     except (OperationalError, InterfaceError, DBAPIError) as exc:
         logger.warning("coordination /hitl answer unavailable: %s", exc)
         raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
+
+
+# ── GET /hitl/{id} ──────────────────────────────────────────────────────────────
+# Poll de um prompt específico — o cockpit acompanha uma reunião (CEO→agente) até
+# o agente responder (status pending→answered). Mesmo shape do /hitl (list).
+_HITL_ONE_SQL = text("""
+SELECT h.id, h.source_ref, h.session_id, h.agent, h.project,
+       h.question, h.context, h.kind, h.options, h.recommended_key,
+       h.status, h.answer,
+       h.created_at, h.expires_at, h.answered_at, h.answered_by,
+       i.title AS issue_title, i.url AS issue_url
+FROM hitl_prompts h
+LEFT JOIN issues i ON i.source_ref = h.source_ref
+WHERE h.id = :id
+""")
+
+
+@router.get("/hitl/{prompt_id}")
+async def get_hitl(
+    prompt_id: int,
+    db: Annotated[AsyncSession, Depends(get_coordination_db)],
+) -> dict[str, Any]:
+    try:
+        row = (await db.execute(_HITL_ONE_SQL, {"id": prompt_id})).mappings().first()
+        if row is None:
+            raise HTTPException(status_code=404, detail={"error": "hitl_not_found"})
+        return {"prompt": dict(row)}
+    except HTTPException:
+        raise
+    except (OperationalError, InterfaceError, DBAPIError) as exc:
+        logger.warning("coordination GET /hitl/{id} unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
+
+
+# ── POST /meeting (reunião CEO→agente, agents-ia#547) ───────────────────────────
+# O CEO clica num agente no mapa do cockpit → cria um hitl_prompt DIRECIONADO a esse
+# agente (kind=text, marcador session_id='cockpit-meeting', expiry 24h). O agente lê
+# no início do próximo ciclo (`hitl.py inbox --agent <mesa>`) e responde FOREGROUND
+# (`hitl.py reply`); a resposta (status=answered) volta ao cockpit via GET /hitl/{id}.
+# É o ÚNICO caminho do cockpit que INSERTa em hitl_prompts (migration 015 deu USAGE
+# em hitl_prompts_id_seq ao cockpit_rw). Reusa a ponte HITL — decisão CEO "Opção B".
+MEETING_SESSION = "cockpit-meeting"
+
+
+class CreateMeetingBody(BaseModel):
+    agent: str
+    message: str
+    project: str | None = None
+
+
+_INSERT_MEETING_SQL = text("""
+INSERT INTO hitl_prompts (session_id, agent, project, question, kind, status, expires_at)
+VALUES (:session_id, :agent, :project, :question, 'text', 'pending', now() + interval '24 hours')
+RETURNING id, source_ref, session_id, agent, project, question, context, kind,
+          options, recommended_key, status, answer, created_at, expires_at
+""")
+
+
+@router.post("/meeting", status_code=201, dependencies=[Depends(enforce_write_rate_limit)])
+async def create_meeting(
+    body: CreateMeetingBody,
+    db: Annotated[AsyncSession, Depends(get_coordination_db)],
+) -> dict[str, Any]:
+    agent = body.agent.strip()
+    message = body.message.strip()
+    if not agent:
+        raise HTTPException(status_code=422, detail={"error": "agent_required"})
+    if not message:
+        raise HTTPException(status_code=422, detail={"error": "message_required"})
+    try:
+        result = await db.execute(
+            _INSERT_MEETING_SQL,
+            {
+                "session_id": MEETING_SESSION,
+                "agent": agent,
+                "project": (body.project or "").strip() or None,
+                "question": message,
+            },
+        )
+        row = result.mappings().one()
+        await db.commit()
+        return {"prompt": dict(row)}
+    except (OperationalError, InterfaceError, DBAPIError) as exc:
+        logger.warning("coordination POST /meeting unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=_DOWN_DETAIL) from exc
