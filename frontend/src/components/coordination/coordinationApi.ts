@@ -147,13 +147,14 @@ export async function createTask(input: {
 export async function respondTask(
   sourceRef: string,
   response: string,
+  relabelAfk = true,
 ): Promise<{ ok: boolean; issue: number }> {
   const res = await fetch(
     `${BASE}/tasks/${encodeURIComponent(sourceRef)}/respond`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ response }),
+      body: JSON.stringify({ response, relabel_afk: relabelAfk }),
     },
   );
   if (res.status === 503) throw new CoordUnavailableError();
@@ -490,6 +491,16 @@ export const approveTask = (
   sourceRef: string,
 ): Promise<{ source_ref: string; action: string }> =>
   mutate(`/tasks/${encodeURIComponent(sourceRef)}/approve`, "POST");
+
+/** Atribuir dono (#840): issue sem `area:*` (ou afk ociosa) ganha `area:<x>`+`afk`
+ *  via backend — sai de "Sem dono"/"Sem agente" e entra na fila do dispatch. */
+export const assignArea = (
+  sourceRef: string,
+  area: string,
+): Promise<{ source_ref: string; action: string; labels: string }> =>
+  mutate(`/tasks/${encodeURIComponent(sourceRef)}/assign-area`, "POST", {
+    area,
+  });
 
 /** Remover da fila de dispatch: tira o label afk via backend. */
 export const removeFromQueue = (

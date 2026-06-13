@@ -188,6 +188,16 @@ export default function TasksPage(): React.ReactNode {
     [agentsData],
   );
 
+  // Opções do dropdown "Atribuir dono" (#840): áreas cobertas pelo roster vivo +
+  // o agente dono de cada uma. Sem hardcode — deriva de `data.agents`.
+  const areaAssignOptions = useMemo(
+    () =>
+      [...areaToAgents.entries()]
+        .map(([area, agents]) => ({ area, agents }))
+        .sort((a, b) => a.area.localeCompare(b.area)),
+    [areaToAgents],
+  );
+
   // Universo de tasks: OPEN sempre + CLOSED só quando "Concluída" está marcada.
   const rawTasks = useMemo(
     () => [
@@ -625,6 +635,15 @@ export default function TasksPage(): React.ReactNode {
                   ↻ {tr("tasks.retry")}
                 </button>
               )}
+              {(status === "sem_dono" || status === "sem_agente") && (
+                <button
+                  onClick={() => setDetailTask(t)}
+                  title={tr("tasks.assignTitle")}
+                  className="px-3 py-1.5 rounded text-sm font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 hover:bg-fuchsia-500/30"
+                >
+                  👤 {tr("tasks.assign")}
+                </button>
+              )}
               {(status === "todo" ||
                 status === "sem_dono" ||
                 status === "sem_agente" ||
@@ -920,12 +939,14 @@ export default function TasksPage(): React.ReactNode {
             ? agentModel(detailTask, deriveStatus(detailTask, prompts))
             : ""
         }
+        areaOptions={areaAssignOptions}
         onClose={() => setDetailTask(null)}
         onApprove={() => {
           if (detailTask) void onApproveRow(detailTask);
         }}
         onSkip={(ref) => void onSkip(ref)}
         onRetry={(ref) => void onRetry(ref)}
+        onChanged={() => void refetch()}
       />
     </main>
   );

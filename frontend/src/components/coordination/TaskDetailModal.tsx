@@ -6,19 +6,31 @@ import { useTranslation, type TranslationKey } from "@/hooks/useTranslation";
 import {
   fetchTaskDetail,
   addTaskNote,
+  assignArea,
+  respondTask,
   type CoordTask,
   type TaskDetail,
 } from "@/components/coordination/coordinationApi";
 import type { TaskStatus } from "@/components/coordination/taskStatus";
 
+/** Opção do dropdown "Atribuir dono": área curta + agentes do roster que a cobrem. */
+export interface AreaOption {
+  area: string;
+  agents: string[];
+}
+
 interface Props {
   task: CoordTask | null;
   status: TaskStatus;
   agentModel: string;
+  /** Áreas atribuíveis, derivadas do roster vivo (`data.agents`) — sem hardcode. */
+  areaOptions: AreaOption[];
   onClose: () => void;
   onApprove: (ref: string) => void; // relabel hitl→afk
   onSkip: (ref: string) => void;
   onRetry: (ref: string) => void;
+  /** Atribuição/resposta mexeu nas labels da issue → o pai re-sincroniza a lista. */
+  onChanged?: () => void;
 }
 
 /** Modal de detalhes: corpo da issue (fetch ao vivo) + notas do CEO pro agente +
@@ -27,10 +39,12 @@ export default function TaskDetailModal({
   task,
   status,
   agentModel,
+  areaOptions,
   onClose,
   onApprove,
   onSkip,
   onRetry,
+  onChanged,
 }: Props): React.ReactNode {
   const { t } = useTranslation();
   const [detail, setDetail] = useState<TaskDetail | null>(null);
@@ -38,8 +52,18 @@ export default function TaskDetailModal({
   const [noteText, setNoteText] = useState("");
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Atribuir dono (#840): área escolhida no dropdown + estado da aplicação.
+  const [area, setArea] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  // Responder task (#840): comentário pro agente (vira comment na issue + relabel).
+  const [respText, setRespText] = useState("");
+  const [responding, setResponding] = useState(false);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
 
   const ref = task?.source_ref ?? null;
+  // `hitl` label-only (sem prompt no banco — esses abrem o HitlAnswerModal): a
+  // resposta relabela hitl→afk; demais tipos só comentam (sem mexer no fluxo).
+  const isHitl = task?.labels.includes("hitl") ?? false;
 
   useEffect(() => {
     if (!ref) return;
@@ -56,7 +80,10 @@ export default function TaskDetailModal({
   if (!task) return null;
 
   const reload = () => {
-    if (ref) void fetchTaskDetail(ref).then(setDetail).catch(() => {});
+    if (ref)
+      void fetchTaskDetail(ref)
+        .then(setDetail)
+        .catch(() => {});
   };
 
   const sendNote = async () => {
@@ -72,6 +99,45 @@ export default function TaskDetailModal({
       setErr(e instanceof Error ? e.message : "erro ao enviar nota");
     } finally {
       setSending(false);
+    }
+  };
+
+  // Aplicar área → issue ganha `area:<x>`+`afk` (sai de Sem dono/Sem agente). O pai
+  // re-sincroniza (onChanged); fechamos o modal pra a task sumir do grupo na hora.
+  const applyArea = async () => {
+    if (!area || !ref) return;
+    setAssigning(true);
+    setErr(null);
+    try {
+      await assignArea(ref, area);
+      setOkMsg(t("tasks.assignDone"));
+      onChanged?.();
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "erro ao atribuir área");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // Responder: posta a resposta como comentário na issue (o dev-loop lê). Para
+  // `hitl` label-only relabela hitl→afk (libera o fluxo); demais só comentam.
+  const sendRespond = async () => {
+    const txt = respText.trim();
+    if (!txt || !ref) return;
+    setResponding(true);
+    setErr(null);
+    try {
+      await respondTask(ref, txt, isHitl); // relabel hitl→afk só p/ HITL
+      setRespText("");
+      setOkMsg(t("tasks.respondDone"));
+      onChanged?.();
+      if (isHitl) onClose();
+      else reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "erro ao responder");
+    } finally {
+      setResponding(false);
     }
   };
 
@@ -160,6 +226,63 @@ export default function TaskDetailModal({
         )}
       </div>
 
+      {/* Atribuir dono (#840): dropdown de áreas com o agente que cobre cada uma
+          (derivado do roster vivo) → Aplicar adiciona area:*+afk na issue. */}
+      <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">
+        {t("tasks.assignOwnerTitle")}
+      </div>
+      <div className="mb-4 flex items-center gap-2">
+        <select
+          value={area}
+          onChange={(e) => setArea(e.target.value)}
+          disabled={assigning || areaOptions.length === 0}
+          className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm disabled:opacity-40"
+        >
+          <option value="">
+            {areaOptions.length === 0
+              ? t("tasks.assignNoAreas")
+              : t("tasks.assignAreaPlaceholder")}
+          </option>
+          {areaOptions.map((o) => (
+            <option key={o.area} value={o.area}>
+              area:{o.area}
+              {o.agents.length > 0
+                ? ` — ${o.agents.join(", ")}`
+                : ` — ${t("tasks.assignNoAgent")}`}
+            </option>
+          ))}
+        </select>
+        <button
+          disabled={assigning || !area}
+          onClick={() => void applyArea()}
+          className="px-3 py-1.5 rounded text-sm font-bold bg-fuchsia-600 text-white disabled:opacity-40"
+        >
+          {assigning ? t("tasks.processing") : t("tasks.assignApply")}
+        </button>
+      </div>
+
+      {/* Responder task (#840): comentário pro agente (vira comment na issue). Para
+          issues `hitl` label-only, relabela hitl→afk (libera o fluxo). */}
+      <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">
+        {t("tasks.respondTitle")}
+      </div>
+      <textarea
+        value={respText}
+        onChange={(e) => setRespText(e.target.value)}
+        rows={2}
+        placeholder={t("tasks.respondPlaceholder")}
+        className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm"
+      />
+      <div className="mt-2 mb-4">
+        <button
+          disabled={responding || !respText.trim()}
+          onClick={() => void sendRespond()}
+          className="px-3 py-1.5 rounded text-sm font-bold bg-amber-600 text-white disabled:opacity-40"
+        >
+          {responding ? t("tasks.processing") : t("tasks.respondSend")}
+        </button>
+      </div>
+
       {/* Notas do CEO pro agente */}
       <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">
         {t("tasks.notesTitle")}
@@ -207,6 +330,7 @@ export default function TaskDetailModal({
         )}
       </div>
       {err && <p className="mt-2 text-rose-400 text-xs">{err}</p>}
+      {okMsg && <p className="mt-2 text-emerald-400 text-xs">{okMsg}</p>}
     </Modal>
   );
 }

@@ -284,7 +284,8 @@ const es: Record<TranslationKey, string> = {
   "tasks.filter.area": "Proyecto / Área",
   "tasks.filter.agent": "Agente",
   "tasks.filter.clear": "Limpiar filtros",
-  "tasks.filter.noClosedHint": "Cerradas ocultas — marca \"Completada\" para mostrarlas.",
+  "tasks.filter.noClosedHint":
+    'Cerradas ocultas — marca "Completada" para mostrarlas.',
   "tasks.facet.em_execucao": "En ejecución",
   "tasks.facet.sem_agente": "Sin agente",
   "tasks.facet.aguardando": "Te necesita",
@@ -307,7 +308,8 @@ const es: Record<TranslationKey, string> = {
   "tasks.prioritize": "Priorizar",
   "tasks.play": "Play",
   "tasks.playTitle": "Despachar esta issue ahora (no espera el cron)",
-  "tasks.playConfirm": "¿Despachar #{n} ahora? Lanza un agente y consume tokens.",
+  "tasks.playConfirm":
+    "¿Despachar #{n} ahora? Lanza un agente y consume tokens.",
   "tasks.playStarted": "#{n} despachada ✓",
   "tasks.playRunning": "#{n} ya está en ejecución",
   "tasks.playCapFull": "límite de concurrencia lleno — reintenta pronto",
@@ -317,6 +319,19 @@ const es: Record<TranslationKey, string> = {
   "tasks.notesTitle": "Notas para el agente",
   "tasks.notePlaceholder": "Nota para el agente (leída al iniciar la task)…",
   "tasks.sendNote": "Enviar nota al agente",
+  "tasks.assign": "Asignar",
+  "tasks.assignTitle": "Asignar área/dueño a esta task",
+  "tasks.assignOwnerTitle": "Asignar dueño",
+  "tasks.assignAreaPlaceholder": "Selecciona un área…",
+  "tasks.assignNoAreas": "No hay áreas disponibles en el roster",
+  "tasks.assignNoAgent": "sin agente",
+  "tasks.assignApply": "Aplicar",
+  "tasks.assignDone": "Área asignada ✓",
+  "tasks.respondTitle": "Responder task",
+  "tasks.respondPlaceholder":
+    "Respuesta para el agente (se publica como comentario en la issue)…",
+  "tasks.respondSend": "Responder",
+  "tasks.respondDone": "Respuesta enviada ✓",
 };
 
 export default es;

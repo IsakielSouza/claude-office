@@ -245,6 +245,64 @@ async def remove_from_queue(source_ref: str) -> dict[str, Any]:
     return {"source_ref": source_ref, "action": "parked"}
 
 
+# Atribuir dono (#840): issue "Sem dono" (sem `area:*`) ou "Sem agente" (afk ociosa)
+# ganha `area:<x>`+`afk` num clique — sai do limbo e entra na fila do dispatch. Mesmo
+# padrão de label de approve/remove (via gh, sem requests/work_claims). A área curta
+# (`front`, `api`, …) vira a label `area:front`; o triador deriva o agente dono dela.
+class AssignAreaBody(BaseModel):
+    area: str  # forma curta: "front", "api", … (vira label "area:<area>")
+
+
+# Conjunto canônico de áreas (espelha PROJECT_TO_AREA_SHORT do front + coordenação/
+# infra que não são projetos). Validação fecha a porta a labels `area:*` inventadas.
+_VALID_AREAS = frozenset(
+    {
+        "api",
+        "front",
+        "trackers",
+        "alert-system",
+        "db",
+        "mobile",
+        "whatsapp",
+        "office",
+        "coordination",
+        "infra",
+    }
+)
+
+
+@router.post("/tasks/{source_ref}/assign-area", dependencies=[Depends(enforce_write_rate_limit)])
+async def assign_area(source_ref: str, body: AssignAreaBody) -> dict[str, Any]:
+    area = body.area.strip().removeprefix("area:")
+    if area not in _VALID_AREAS:
+        raise HTTPException(status_code=422, detail={"error": "área inválida", "area": area})
+    num = _ref_to_issue_number(source_ref)
+    if num is None:
+        raise HTTPException(status_code=400, detail={"error": "source_ref sem número de issue"})
+    label = f"area:{area}"
+    proc = await asyncio.create_subprocess_exec(
+        "gh",
+        "issue",
+        "edit",
+        str(num),
+        "--repo",
+        _AGENTS_IA_REPO,
+        "--add-label",
+        label,
+        "--add-label",
+        "afk",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, err = await proc.communicate()
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail={"error": "gh falhou", "stderr": err.decode()[:300]},
+        )
+    return {"source_ref": source_ref, "action": "assigned", "labels": f"{label}+afk"}
+
+
 # ── Notas do CEO pra uma task (migration 012, canal-agnóstico) ──────────────────
 class NoteBody(BaseModel):
     note: str

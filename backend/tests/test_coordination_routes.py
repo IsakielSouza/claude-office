@@ -613,6 +613,36 @@ def test_approve_rejects_ref_without_number() -> None:
     assert r.status_code == 400
 
 
+def test_assign_area_rejects_bad_area() -> None:
+    client = TestClient(app)
+    r = client.post(
+        "/api/v1/coordination/tasks/agents-ia%23294/assign-area",
+        json={"area": "naoexiste"},
+    )
+    assert r.status_code == 422
+
+
+def test_assign_area_rejects_ref_without_number() -> None:
+    # área válida, mas ref sem número → 400 (a validação de área roda antes do gh)
+    client = TestClient(app)
+    r = client.post(
+        "/api/v1/coordination/tasks/semnumero/assign-area",
+        json={"area": "front"},
+    )
+    assert r.status_code == 400
+
+
+def test_assign_area_accepts_prefixed_area() -> None:
+    # "area:front" e "front" são equivalentes (removeprefix); a área inválida é o teste,
+    # então um ref sem número garante 400 (não 422) provando que "area:front" passou.
+    client = TestClient(app)
+    r = client.post(
+        "/api/v1/coordination/tasks/semnumero/assign-area",
+        json={"area": "area:front"},
+    )
+    assert r.status_code == 400
+
+
 @pytest.mark.skipif(not _coord_up(), reason=":5433 coordination DB indisponível")
 def test_no_busy_without_active_claim() -> None:
     """Nenhum agente pode estar 'busy' sem claim ativo (fix do busy stale)."""

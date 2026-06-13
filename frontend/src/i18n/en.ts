@@ -282,7 +282,8 @@ const en = {
   "tasks.filter.area": "Project / Area",
   "tasks.filter.agent": "Agent",
   "tasks.filter.clear": "Clear filters",
-  "tasks.filter.noClosedHint": "Closed tasks are hidden — check \"Done\" to show them.",
+  "tasks.filter.noClosedHint":
+    'Closed tasks are hidden — check "Done" to show them.',
   "tasks.facet.em_execucao": "Running",
   "tasks.facet.sem_agente": "No agent",
   "tasks.facet.aguardando": "Needs you",
@@ -305,7 +306,8 @@ const en = {
   "tasks.prioritize": "Prioritize",
   "tasks.play": "Play",
   "tasks.playTitle": "Dispatch this issue now (doesn't wait for the cron)",
-  "tasks.playConfirm": "Dispatch #{n} now? It launches an agent and costs tokens.",
+  "tasks.playConfirm":
+    "Dispatch #{n} now? It launches an agent and costs tokens.",
   "tasks.playStarted": "#{n} dispatched ✓",
   "tasks.playRunning": "#{n} already running",
   "tasks.playCapFull": "concurrency cap full — try again soon",
@@ -315,6 +317,19 @@ const en = {
   "tasks.notesTitle": "Notes to the agent",
   "tasks.notePlaceholder": "Note for the agent (read when the task starts)…",
   "tasks.sendNote": "Send note to agent",
+  "tasks.assign": "Assign",
+  "tasks.assignTitle": "Assign an area/owner to this task",
+  "tasks.assignOwnerTitle": "Assign owner",
+  "tasks.assignAreaPlaceholder": "Select an area…",
+  "tasks.assignNoAreas": "No areas available in the roster",
+  "tasks.assignNoAgent": "no agent",
+  "tasks.assignApply": "Apply",
+  "tasks.assignDone": "Area assigned ✓",
+  "tasks.respondTitle": "Respond to task",
+  "tasks.respondPlaceholder":
+    "Reply for the agent (posted as a comment on the issue)…",
+  "tasks.respondSend": "Respond",
+  "tasks.respondDone": "Reply sent ✓",
 } as const;
 
 export type TranslationKey = keyof typeof en;
