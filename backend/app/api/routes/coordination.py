@@ -1582,11 +1582,13 @@ async def run_agent_now(
         proc = await asyncio.create_subprocess_exec(
             _COORD_PY,
             _COORD_SCRIPT,
-            "--dsn",
-            _COORD_DSN,
             "loop-command",
             "--agent",
             nome,
+            # --dsn DEPOIS do subcomando: loop-command tem --dsn próprio (subparser),
+            # que descarta o --dsn global. agents-ia#835 (correção de posição).
+            "--dsn",
+            _COORD_DSN,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

@@ -897,8 +897,9 @@ def test_run_agent_passes_dsn_to_loop_command(monkeypatch: pytest.MonkeyPatch) -
     dsn = loop_call[loop_call.index("--dsn") + 1]
     assert dsn == coord._COORD_DSN
     assert "+asyncpg" not in dsn
-    # --dsn é arg global => vem ANTES do subcomando loop-command
-    assert loop_call.index("--dsn") < loop_call.index("loop-command")
+    # loop-command tem --dsn PRÓPRIO (subparser) => --dsn vem DEPOIS do subcomando
+    # (o --dsn global é descartado pelo subparser; agents-ia#835 correção de posição).
+    assert loop_call.index("--dsn") > loop_call.index("loop-command")
 
 
 def test_dispatch_rejects_non_positive() -> None:
