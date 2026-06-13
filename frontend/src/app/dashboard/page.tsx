@@ -927,7 +927,11 @@ export default function DashboardPage(): React.ReactNode {
 
       {/* Modal de PRs abertos por projeto (estado vivo do GitHub) */}
       {showPrs && (
-        <PrModal data={data?.prs ?? null} onClose={() => setShowPrs(false)} />
+        <PrModal
+          data={data?.prs ?? null}
+          agents={data?.agents ?? []}
+          onClose={() => setShowPrs(false)}
+        />
       )}
 
       {showSemAgente && (
@@ -1270,14 +1274,84 @@ function SemAgenteModal({
   );
 }
 
+/** ▶ Play num agente derivado do roster (QA/DevOps do repo do PR). Reusa o
+ * runAgentNow (#833) e os estados started/already_running do Play do agente.
+ * `agent=null` → sem agente p/ o repo: botão desabilitado com tooltip. */
+function PrAgentPlay({
+  agent,
+  role,
+  icon,
+  noAgentTip,
+}: {
+  agent: CoordAgent | null;
+  role: string;
+  icon: string;
+  noAgentTip: string;
+}): React.ReactNode {
+  const [running, setRunning] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  // ocupado = já tem claim/loop ativo: evita forçar 2º loop (igual AgentColumn).
+  const busy = agent
+    ? agent.active_claims > 0 || Boolean(agent.current_ref)
+    : false;
+  const disabled = !agent || running || busy;
+  const runNow = async (): Promise<void> => {
+    if (!agent) return;
+    setRunning(true);
+    setMsg(null);
+    try {
+      const res = await runAgentNow(agent.nome);
+      setMsg(res.status === "already_running" ? "já rodando" : "iniciado ✓");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "erro");
+    } finally {
+      setRunning(false);
+    }
+  };
+  const tip = !agent
+    ? noAgentTip
+    : busy
+      ? `${agent.nome} já tem claim/loop ativo`
+      : `rodar ${agent.nome} agora (${role}) — sem esperar o cron`;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void runNow();
+      }}
+      disabled={disabled}
+      title={tip}
+      className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-[#34d399] border border-[rgba(52,211,153,0.35)] bg-[rgba(52,211,153,0.08)] hover:bg-[rgba(52,211,153,0.16)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+    >
+      <Play size={10} className={running ? "animate-pulse" : ""} />
+      {icon} {running ? "…" : (msg ?? role)}
+    </button>
+  );
+}
+
 function PrModal({
   data,
+  agents,
   onClose,
 }: {
   data: CoordOpenPrs | null;
+  agents: CoordAgent[];
   onClose: () => void;
 }): React.ReactNode {
   const groups = data?.by_project ?? [];
+  // Deriva o agente do ROSTER VIVO (sem mapa hardcoded, lição do #826): role +
+  // projetos contém o repo do PR. O roster QA mapeia projetos→repo 1:1 (backend
+  // _qa_reviewers), então projetos.includes(repo) casa QA e DevOps do repo.
+  const agentFor = (repo: string, role: string): CoordAgent | null =>
+    agents.find(
+      (a) =>
+        a.role === role &&
+        a.enabled &&
+        !a.archived_at &&
+        a.projetos.includes(repo),
+    ) ?? null;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -1347,6 +1421,22 @@ function PrModal({
                       </span>
                     </>
                   )}
+                </div>
+                {/* ▶ Play por grupo (#838): roda QA/DevOps do repo agora, sem
+                    esperar o cron. Agente derivado do roster vivo (agentFor). */}
+                <div className="flex items-center gap-1.5 mb-2">
+                  <PrAgentPlay
+                    agent={agentFor(g.repo, "qa")}
+                    role="Chamar QA"
+                    icon="🔍"
+                    noAgentTip={`sem agente QA no roster p/ ${g.repo}`}
+                  />
+                  <PrAgentPlay
+                    agent={agentFor(g.repo, "devops")}
+                    role="DevOps"
+                    icon="🚀"
+                    noAgentTip={`sem agente DevOps no roster p/ ${g.repo}`}
+                  />
                 </div>
                 <ul className="space-y-1.5">
                   {g.prs.map((pr) => (
