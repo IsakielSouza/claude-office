@@ -2,7 +2,13 @@
 
 export type CronEditor =
   | { mode: "times"; minute: number; hours: number[] }
-  | { mode: "interval"; everyMin: number; startHour: number; endHour: number }
+  | {
+      mode: "interval";
+      everyMin: number;
+      startHour: number;
+      endHour: number;
+      h24?: boolean;
+    }
   | { mode: "raw" };
 
 /** ["08:00","22:00"] -> "0 8,22 * * *". Assume minuto único (usa o do 1º horário). */
@@ -46,12 +52,12 @@ export function cronToEditor(expr: string): CronEditor {
     const step = minList[1] - minList[0];
     const ok = step > 0 && minList.every((m, i) => m === i * step);
     if (ok) {
-      return {
-        mode: "interval",
-        everyMin: step,
-        startHour: Number(rangeMatch[1]),
-        endHour: Number(rangeMatch[2]),
-      };
+      const startHour = Number(rangeMatch[1]);
+      const endHour = Number(rangeMatch[2]);
+      const editor: CronEditor = { mode: "interval", everyMin: step, startHour, endHour };
+      // janela 0-23 == "24h por dia" → reabre com a caixa marcada (round-trip)
+      if (startHour === 0 && endHour === 23) editor.h24 = true;
+      return editor;
     }
   }
 

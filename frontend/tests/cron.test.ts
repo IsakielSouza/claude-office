@@ -15,7 +15,22 @@ describe("intervalToCron", () => {
   });
 });
 
+describe("intervalToCron 24h", () => {
+  it("a cada 15min, janela 0-23 (24h)", () => {
+    expect(intervalToCron(15, 0, 23)).toBe("0,15,30,45 0-23 * * *");
+  });
+});
+
 describe("cronToEditor", () => {
+  it("reconhece janela 0-23 como 24h (round-trip)", () => {
+    expect(cronToEditor("0,15,30,45 0-23 * * *")).toEqual({
+      mode: "interval",
+      everyMin: 15,
+      startHour: 0,
+      endHour: 23,
+      h24: true,
+    });
+  });
   it("reconhece intervalo", () => {
     expect(cronToEditor("0,15,30,45 7-23 * * *")).toEqual({
       mode: "interval",

@@ -38,6 +38,9 @@ export function AgendaEditor({
   const [endHour, setEndHour] = useState(
     initial.mode === "interval" ? initial.endHour : 23,
   );
+  const [h24, setH24] = useState(
+    initial.mode === "interval" ? initial.h24 === true : false,
+  );
   const [newTime, setNewTime] = useState("");
   const [enabled, setEnabled] = useState(agent.enabled);
   const [busy, setBusy] = useState(false);
@@ -51,7 +54,9 @@ export function AgendaEditor({
               `${String(h).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
           ),
         )
-      : intervalToCron(everyMin, startHour, endHour);
+      : h24
+        ? intervalToCron(everyMin, 0, 23)
+        : intervalToCron(everyMin, startHour, endHour);
 
   function addTime(): void {
     const m = newTime.match(/^(\d{1,2}):(\d{2})$/);
@@ -167,7 +172,7 @@ export function AgendaEditor({
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-2 text-sm text-[#9a93b3]">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-[#9a93b3]">
           a cada
           <select
             value={everyMin}
@@ -180,25 +185,40 @@ export function AgendaEditor({
               </option>
             ))}
           </select>
-          min, das
-          <input
-            type="number"
-            min={0}
-            max={23}
-            value={startHour}
-            onChange={(e) => setStartHour(Number(e.target.value))}
-            className="w-14 bg-white/5 border border-[rgba(168,85,247,0.25)] rounded-lg px-1.5 py-1"
-          />
-          às
-          <input
-            type="number"
-            min={0}
-            max={23}
-            value={endHour}
-            onChange={(e) => setEndHour(Number(e.target.value))}
-            className="w-14 bg-white/5 border border-[rgba(168,85,247,0.25)] rounded-lg px-1.5 py-1"
-          />
-          h
+          min
+          {/* 24h: marca → janela 0-23 e some com os inputs de hora início/fim */}
+          {!h24 && (
+            <>
+              , das
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={startHour}
+                onChange={(e) => setStartHour(Number(e.target.value))}
+                className="w-14 bg-white/5 border border-[rgba(168,85,247,0.25)] rounded-lg px-1.5 py-1"
+              />
+              às
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={endHour}
+                onChange={(e) => setEndHour(Number(e.target.value))}
+                className="w-14 bg-white/5 border border-[rgba(168,85,247,0.25)] rounded-lg px-1.5 py-1"
+              />
+              h
+            </>
+          )}
+          <label className="flex items-center gap-1.5 cursor-pointer ml-1">
+            <input
+              type="checkbox"
+              checked={h24}
+              onChange={(e) => setH24(e.target.checked)}
+              className="accent-[#a855f7]"
+            />
+            24h
+          </label>
         </div>
       )}
 
