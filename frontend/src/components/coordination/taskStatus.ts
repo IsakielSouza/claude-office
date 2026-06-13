@@ -8,6 +8,7 @@ export type TaskStatus =
   | "running"
   | "error"
   | "done"
+  | "backlog"
   | "unknown";
 
 export type TaskGroup = "need_you" | "in_progress" | "queue" | "history";
@@ -22,6 +23,9 @@ export function deriveStatus(
   if (task.state === "CLOSED") return "done";
   // Removida da fila pelo CEO (cockpit): sai dos grupos vivos como done/history.
   if (task.labels.includes("parked")) return "done";
+  // Backlog (someday/longo prazo): sai da fila ativa e do "precisa de você" —
+  // vive na lista de Backlog. Precede hitl/area (mesmo um backlog hitl é backlog).
+  if (task.labels.includes("backlogs")) return "backlog";
 
   const claim = task.claim_status;
   if (claim === "in_progress" || task.run_status === "running") return "running";
@@ -55,6 +59,7 @@ export function statusGroup(status: TaskStatus): TaskGroup {
     case "unknown":
       return "queue";
     case "done":
+    case "backlog":
       return "history";
   }
 }

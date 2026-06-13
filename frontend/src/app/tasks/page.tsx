@@ -56,6 +56,7 @@ const STATUS_COLOR: Record<TaskStatus, string> = {
   todo: "text-slate-200",
   open: "text-slate-400",
   done: "text-emerald-400",
+  backlog: "text-yellow-600",
   unknown: "text-slate-500",
 };
 

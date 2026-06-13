@@ -132,6 +132,7 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   running: "Em progresso",
   error: "Erro",
   done: "Concluído",
+  backlog: "Backlog",
   unknown: "—",
 };
 
@@ -299,6 +300,14 @@ export default function DashboardPage(): React.ReactNode {
     }
     return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
   }, [orphans]);
+
+  // Backlog (someday/longo prazo): tasks com label `backlogs` — fora da fila ativa.
+  const backlogTasks = useMemo(() => {
+    if (!data) return [] as CoordTask[];
+    return data.tasks
+      .filter((t) => statusByRef.get(t.source_ref) === "backlog")
+      .sort((a, b) => a.number - b.number);
+  }, [data, statusByRef]);
 
   // board: colunas por agente (tasks atribuídas) + coluna FILA (visíveis SEM agente).
   // A maioria das tasks não tem claim/run agent (ou tem 'cron:...'/nome divergente)
@@ -535,6 +544,53 @@ export default function DashboardPage(): React.ReactNode {
               </div>
             )}
           </section>
+
+          {/* Backlog (someday/longo prazo) — issues com label `backlogs`, fora da fila ativa */}
+          {backlogTasks.length > 0 && (
+            <section className="rounded-2xl p-5 mb-7 backdrop-blur-md border bg-[rgba(139,105,20,0.08)] border-[rgba(180,140,40,0.4)]">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[#c9a227] text-lg">🗃️</span>
+                <span className="text-[15px] font-bold text-[#d4af37]">
+                  Backlog ({backlogTasks.length})
+                </span>
+                <span className="text-[#9a93b3] text-[13px]">
+                  — someday / longo prazo. Fora da fila ativa; não é auto-despachado.
+                </span>
+              </div>
+              <ul className="flex flex-col gap-1.5">
+                {backlogTasks.map((t) => {
+                  const areas = taskAreas(t);
+                  const num = t.source_ref.replace(/^agents-ia#/, "");
+                  return (
+                    <li key={t.source_ref}>
+                      <a
+                        href={`https://github.com/IsakielSouza/agents-ia/issues/${num}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-baseline gap-2 rounded-lg px-3 py-2 bg-[rgba(180,140,40,0.06)] border border-[rgba(180,140,40,0.15)] hover:border-[rgba(180,140,40,0.45)] transition text-sm"
+                      >
+                        <span className="text-[#d4af37] font-mono">#{t.number}</span>
+                        <span className="text-[#cfc9e0] flex-1 truncate">{t.title}</span>
+                        {areas.map((a) => (
+                          <span
+                            key={a}
+                            className="text-[10px] text-[#9a93b3] border border-[rgba(168,85,247,0.25)] rounded px-1.5 py-0.5 whitespace-nowrap"
+                          >
+                            {shortArea(a)}
+                          </span>
+                        ))}
+                        {t.labels.includes("hitl") && (
+                          <span className="text-[10px] text-[#fbbf24] whitespace-nowrap">
+                            hitl
+                          </span>
+                        )}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
           {/* Alerta: tasks SEM DONO (órfãs — área sem agente executor ou sem area:*) */}
           {orphans.length > 0 && (
