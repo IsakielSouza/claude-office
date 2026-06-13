@@ -154,6 +154,7 @@ export default function DashboardPage(): React.ReactNode {
   // até 5min). Override otimista: saem de "precisa de você" na hora.
   const [respondedRefs, setRespondedRefs] = useState<Set<string>>(new Set());
   const [showPrs, setShowPrs] = useState(false);
+  const [showBacklog, setShowBacklog] = useState(false);
 
   const qs = useMemo(() => `?period=${period}`, [period]);
 
@@ -478,6 +479,13 @@ export default function DashboardPage(): React.ReactNode {
               <SummaryPill active={false} onClick={() => void refetch()} color="#ec4899">
                 ✕ Erros — {groupCounts.errors}
               </SummaryPill>
+              <SummaryPill
+                active={showBacklog}
+                onClick={() => setShowBacklog((s) => !s)}
+                color="#d4af37"
+              >
+                🗃️ Backlog ({backlogTasks.length})
+              </SummaryPill>
             </div>
           </section>
 
@@ -544,53 +552,6 @@ export default function DashboardPage(): React.ReactNode {
               </div>
             )}
           </section>
-
-          {/* Backlog (someday/longo prazo) — issues com label `backlogs`, fora da fila ativa */}
-          {backlogTasks.length > 0 && (
-            <section className="rounded-2xl p-5 mb-7 backdrop-blur-md border bg-[rgba(139,105,20,0.08)] border-[rgba(180,140,40,0.4)]">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-[#c9a227] text-lg">🗃️</span>
-                <span className="text-[15px] font-bold text-[#d4af37]">
-                  Backlog ({backlogTasks.length})
-                </span>
-                <span className="text-[#9a93b3] text-[13px]">
-                  — someday / longo prazo. Fora da fila ativa; não é auto-despachado.
-                </span>
-              </div>
-              <ul className="flex flex-col gap-1.5">
-                {backlogTasks.map((t) => {
-                  const areas = taskAreas(t);
-                  const num = t.source_ref.replace(/^agents-ia#/, "");
-                  return (
-                    <li key={t.source_ref}>
-                      <a
-                        href={`https://github.com/IsakielSouza/agents-ia/issues/${num}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-baseline gap-2 rounded-lg px-3 py-2 bg-[rgba(180,140,40,0.06)] border border-[rgba(180,140,40,0.15)] hover:border-[rgba(180,140,40,0.45)] transition text-sm"
-                      >
-                        <span className="text-[#d4af37] font-mono">#{t.number}</span>
-                        <span className="text-[#cfc9e0] flex-1 truncate">{t.title}</span>
-                        {areas.map((a) => (
-                          <span
-                            key={a}
-                            className="text-[10px] text-[#9a93b3] border border-[rgba(168,85,247,0.25)] rounded px-1.5 py-0.5 whitespace-nowrap"
-                          >
-                            {shortArea(a)}
-                          </span>
-                        ))}
-                        {t.labels.includes("hitl") && (
-                          <span className="text-[10px] text-[#fbbf24] whitespace-nowrap">
-                            hitl
-                          </span>
-                        )}
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
 
           {/* Alerta: tasks SEM DONO (órfãs — área sem agente executor ou sem area:*) */}
           {orphans.length > 0 && (
@@ -854,6 +815,10 @@ export default function DashboardPage(): React.ReactNode {
       {showPrs && (
         <PrModal data={data?.prs ?? null} onClose={() => setShowPrs(false)} />
       )}
+
+      {showBacklog && (
+        <BacklogModal tasks={backlogTasks} onClose={() => setShowBacklog(false)} />
+      )}
     </main>
   );
 }
@@ -880,6 +845,81 @@ function fmtClock(iso: string | null): string {
   const dt = new Date(iso);
   if (Number.isNaN(dt.getTime())) return "—";
   return dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function BacklogModal({
+  tasks,
+  onClose,
+}: {
+  tasks: CoordTask[];
+  onClose: () => void;
+}): React.ReactNode {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl border border-[rgba(180,140,40,0.4)] bg-[rgba(20,14,38,0.97)] p-6 shadow-[0_0_40px_rgba(180,140,40,0.2)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-bold text-[#e8e4f3]">
+            🗃️ Backlog <span className="text-[#d4af37]">{tasks.length}</span>
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-[#9a93b3] hover:text-white text-xl leading-none"
+            aria-label="Fechar"
+          >
+            ×
+          </button>
+        </div>
+        <p className="text-[#9a93b3] text-xs mb-4">
+          Someday / longo prazo — fora da fila ativa, não auto-despachado.
+        </p>
+
+        {tasks.length === 0 ? (
+          <p className="text-[#9a93b3] text-sm py-6 text-center">
+            Backlog vazio. 🎉
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {tasks.map((t) => {
+              const areas = taskAreas(t);
+              const num = t.source_ref.replace(/^agents-ia#/, "");
+              return (
+                <li key={t.source_ref}>
+                  <a
+                    href={`https://github.com/IsakielSouza/agents-ia/issues/${num}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-baseline gap-2 rounded-lg px-3 py-2 bg-[rgba(180,140,40,0.06)] border border-[rgba(180,140,40,0.15)] hover:border-[rgba(180,140,40,0.45)] transition text-sm"
+                  >
+                    <span className="text-[#d4af37] font-mono">#{t.number}</span>
+                    <span className="text-[#cfc9e0] flex-1 truncate">{t.title}</span>
+                    {areas.map((a) => (
+                      <span
+                        key={a}
+                        className="text-[10px] text-[#9a93b3] border border-[rgba(168,85,247,0.25)] rounded px-1.5 py-0.5 whitespace-nowrap"
+                      >
+                        {shortArea(a)}
+                      </span>
+                    ))}
+                    {t.labels.includes("hitl") && (
+                      <span className="text-[10px] text-[#fbbf24] whitespace-nowrap">
+                        hitl
+                      </span>
+                    )}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PrModal({
