@@ -346,6 +346,13 @@ const ptBR: Record<TranslationKey, string> = {
   "tasks.backlogNoArea":
     "Sem area:* neste item — será aprovado mesmo assim (afk), e a triagem define o dono.",
   "tasks.backlogApproved": "#{n} aprovada para desenvolvimento ✓",
+  "tasks.parkedReactivate": "Reativar",
+  "tasks.parkedReactivateTitle":
+    "remover parked e mandar de volta pra fila de dispatch (afk)",
+  "tasks.parkedModalHint":
+    "Congelada pelo CEO — fora da fila ativa. Reativar remove parked e adiciona afk, de volta ao fluxo de dispatch.",
+  "tasks.parkedReactivated": "✓ reativada",
+  "tasks.parkedEmpty": "Nada na geladeira. 🎉",
 };
 
 export default ptBR;

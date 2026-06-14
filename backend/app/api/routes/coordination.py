@@ -280,6 +280,41 @@ async def remove_from_queue(source_ref: str) -> dict[str, Any]:
     return {"source_ref": source_ref, "action": "parked"}
 
 
+# Reativar uma task PARKED: tira `parked` (sai da geladeira/grupo history) e adiciona
+# `afk` (volta pra fila do dispatch). Inverso do `/remove` acima e espelho do
+# approve-backlog — `parked` precede backlogs/epic em deriveStatus, então remover só o
+# label `parked` + afk basta. Idempotente: gh ignora label ausente.
+@router.post(
+    "/tasks/{source_ref}/reactivate-parked",
+    dependencies=[Depends(enforce_write_rate_limit)],
+)
+async def reactivate_parked(source_ref: str) -> dict[str, Any]:
+    num = _ref_to_issue_number(source_ref)
+    if num is None:
+        raise HTTPException(status_code=400, detail={"error": "source_ref sem número de issue"})
+    proc = await asyncio.create_subprocess_exec(
+        "gh",
+        "issue",
+        "edit",
+        str(num),
+        "--repo",
+        _AGENTS_IA_REPO,
+        "--remove-label",
+        "parked",
+        "--add-label",
+        "afk",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, err = await proc.communicate()
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail={"error": "gh falhou", "stderr": err.decode()[:300]},
+        )
+    return {"source_ref": source_ref, "action": "reactivated", "labels": "parked→afk"}
+
+
 # Atribuir dono (#840): issue "Sem dono" (sem `area:*`) ou "Sem agente" (afk ociosa)
 # ganha `area:<x>`+`afk` num clique — sai do limbo e entra na fila do dispatch. Mesmo
 # padrão de label de approve/remove (via gh, sem requests/work_claims). A área curta

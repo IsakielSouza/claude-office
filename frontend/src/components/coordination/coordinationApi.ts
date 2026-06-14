@@ -505,6 +505,13 @@ export const approveBacklog = (
 ): Promise<{ source_ref: string; action: string }> =>
   mutate(`/tasks/${encodeURIComponent(sourceRef)}/approve-backlog`, "POST");
 
+/** Reativar uma task PARKED: remove `parked` + adiciona `afk` via backend — sai da
+ *  geladeira (grupo history) e volta pra fila do dispatch. Inverso do `/remove`. */
+export const reactivateParked = (
+  sourceRef: string,
+): Promise<{ source_ref: string; action: string }> =>
+  mutate(`/tasks/${encodeURIComponent(sourceRef)}/reactivate-parked`, "POST");
+
 /** Atribuir dono (#840): issue sem `area:*` (ou afk ociosa) ganha `area:<x>`+`afk`
  *  via backend — sai de "Sem dono"/"Sem agente" e entra na fila do dispatch. */
 export const assignArea = (

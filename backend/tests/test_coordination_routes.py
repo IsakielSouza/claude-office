@@ -671,6 +671,36 @@ def test_remove_rejects_ref_without_number() -> None:
     assert r.status_code == 400
 
 
+def test_reactivate_parked_rejects_ref_without_number() -> None:
+    client = TestClient(app)
+    r = client.post("/api/v1/coordination/tasks/semnumero/reactivate-parked")
+    assert r.status_code == 400
+
+
+def test_reactivate_parked_releases_to_afk(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Happy-path: gh OK → parked sai, afk entra (parked→afk), action=reactivated."""
+    import app.api.routes.coordination as coord
+
+    seen: dict[str, list[str]] = {}
+
+    async def _fake(*args: str, **_: object) -> _FakeProc:
+        seen["args"] = list(args)
+        return _FakeProc()
+
+    monkeypatch.setattr(coord.asyncio, "create_subprocess_exec", _fake)
+    client = TestClient(app)
+    r = client.post("/api/v1/coordination/tasks/agents-ia%2342/reactivate-parked")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["action"] == "reactivated"
+    assert body["labels"] == "parked→afk"
+    assert seen["args"][:3] == ["gh", "issue", "edit"]
+    assert "--remove-label" in seen["args"]
+    assert "parked" in seen["args"]
+    assert "--add-label" in seen["args"]
+    assert "afk" in seen["args"]
+
+
 def test_note_rejects_empty() -> None:
     client = TestClient(app)
     r = client.post("/api/v1/coordination/tasks/agents-ia%2333/note", json={"note": "   "})

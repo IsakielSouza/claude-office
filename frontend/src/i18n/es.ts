@@ -347,6 +347,13 @@ const es: Record<TranslationKey, string> = {
   "tasks.backlogNoArea":
     "Sin area:* en este ítem — se aprobará igual (afk), y el triage define el dueño.",
   "tasks.backlogApproved": "#{n} aprobada para desarrollo ✓",
+  "tasks.parkedReactivate": "Reactivar",
+  "tasks.parkedReactivateTitle":
+    "quitar parked y devolverla a la cola de dispatch (afk)",
+  "tasks.parkedModalHint":
+    "Congelada por el CEO — fuera de la cola activa. Reactivar quita parked y añade afk, de vuelta al flujo de dispatch.",
+  "tasks.parkedReactivated": "✓ reactivada",
+  "tasks.parkedEmpty": "Nada aparcado. 🎉",
 };
 
 export default es;

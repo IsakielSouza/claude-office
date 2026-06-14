@@ -345,6 +345,13 @@ const en = {
   "tasks.backlogNoArea":
     "No area:* on this item — it will still be approved (afk), and triage assigns the owner.",
   "tasks.backlogApproved": "#{n} approved for development ✓",
+  "tasks.parkedReactivate": "Reactivate",
+  "tasks.parkedReactivateTitle":
+    "remove parked and send it back to the dispatch queue (afk)",
+  "tasks.parkedModalHint":
+    "Frozen by the CEO — out of the active queue. Reactivating removes parked and adds afk, back into the dispatch flow.",
+  "tasks.parkedReactivated": "✓ reactivated",
+  "tasks.parkedEmpty": "No parked items. 🎉",
 } as const;
 
 export type TranslationKey = keyof typeof en;
