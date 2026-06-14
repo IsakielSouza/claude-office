@@ -54,11 +54,15 @@ export function statusFacetOf(
       return "sem_agente";
     case "done":
       return "done";
+    case "epic":
+      // `deriveStatus` já promove epics OPEN parados ao status próprio `epic`.
+      return "epic";
     case "sem_dono":
     case "todo":
     case "backlog":
     case "unknown":
-      // epic sobrepõe os status "parados" (só quando não está ativo/fechado acima).
+      // Borda: um epic que TAMBÉM é backlog deriva pra `backlog` (backlogs vence
+      // em deriveStatus) — mantemos ele na faceta epic (guarda-chuva não despacha).
       if (task.labels.includes("epic")) return "epic";
       return d === "sem_dono" ? "sem_dono" : "backlog"; // backlog, todo, unknown
     default: {

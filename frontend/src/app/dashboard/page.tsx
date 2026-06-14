@@ -145,6 +145,7 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   error: "Erro",
   done: "Concluído",
   backlog: "Backlog",
+  epic: "Epic",
   unknown: "—",
 };
 

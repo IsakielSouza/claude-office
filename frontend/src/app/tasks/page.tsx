@@ -78,6 +78,7 @@ const STATUS_COLOR: Record<TaskStatus, string> = {
   sem_dono: "text-slate-400",
   done: "text-emerald-400",
   backlog: "text-yellow-600",
+  epic: "text-violet-400",
   unknown: "text-slate-500",
 };
 
@@ -270,6 +271,20 @@ export default function TasksPage(): React.ReactNode {
           (t) =>
             deriveStatus(t, prompts) === "backlog" &&
             !resolved.has(t.source_ref),
+        )
+        .sort((a, b) => a.number - b.number),
+    [filtered, prompts, resolved],
+  );
+
+  // Epic (guarda-chuva): como o backlog, FORA da fila ativa (grupo history) — não
+  // entra em groups.queue. Lista própria, semi-transparente e SEM Play (renderRow
+  // já trata via isEpic). Só visualizar/abrir o detalhe; o dev-loop ignora epic.
+  const epicTasks = useMemo(
+    () =>
+      filtered
+        .filter(
+          (t) =>
+            deriveStatus(t, prompts) === "epic" && !resolved.has(t.source_ref),
         )
         .sort((a, b) => a.number - b.number),
     [filtered, prompts, resolved],
@@ -928,6 +943,8 @@ export default function TasksPage(): React.ReactNode {
               false,
               true,
             )}
+          {epicTasks.length > 0 &&
+            renderGroup("tasks.group.epic", epicTasks, "text-violet-400")}
           {backlogTasks.length > 0 && (
             <section className="mb-5">
               <h2 className="text-sm font-extrabold tracking-wide mb-1 text-yellow-600">

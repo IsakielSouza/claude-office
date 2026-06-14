@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CoordTask, HitlPrompt } from "./coordinationApi";
-import { deriveStatus } from "./taskStatus";
+import { deriveStatus, statusGroup } from "./taskStatus";
 
 function makeTask(overrides: Partial<CoordTask> = {}): CoordTask {
   return {
@@ -64,5 +64,42 @@ describe("deriveStatus — hitl false-positive guard (#841)", () => {
   it("hasPendingPrompt SEMPRE vence o guarda (hitl + afk + prompt pendente)", () => {
     const task = makeTask({ labels: ["hitl", "afk"], source_ref: "ref-9" });
     expect(deriveStatus(task, [pendingPrompt("ref-9")])).toBe("pending");
+  });
+});
+
+describe("deriveStatus — epic sai da fila ativa (status próprio → history)", () => {
+  it("epic OPEN parado → status epic (não todo/sem_dono)", () => {
+    const task = makeTask({ labels: ["epic"] });
+    expect(deriveStatus(task, [])).toBe("epic");
+  });
+
+  it("epic + afk → epic (NÃO sem_agente — não vai pro dispatch)", () => {
+    const task = makeTask({ labels: ["epic", "afk"] });
+    expect(deriveStatus(task, [])).toBe("epic");
+  });
+
+  it("epic + area → epic (não todo)", () => {
+    const task = makeTask({ labels: ["epic", "area:front"] });
+    expect(deriveStatus(task, [])).toBe("epic");
+  });
+
+  it("epic vai pro grupo history (fora da fila, igual ao backlog)", () => {
+    expect(statusGroup("epic")).toBe("history");
+    expect(statusGroup("backlog")).toBe("history");
+  });
+
+  it("epic FECHADA continua done (epic só vale pra OPEN)", () => {
+    const task = makeTask({ labels: ["epic"], state: "CLOSED" });
+    expect(deriveStatus(task, [])).toBe("done");
+  });
+
+  it("epic em execução continua running (não regride pra epic)", () => {
+    const task = makeTask({ labels: ["epic"], run_status: "running" });
+    expect(deriveStatus(task, [])).toBe("running");
+  });
+
+  it("epic + backlogs → backlog (backlogs vence; epic só pra OPEN parado)", () => {
+    const task = makeTask({ labels: ["epic", "backlogs"] });
+    expect(deriveStatus(task, [])).toBe("backlog");
   });
 });

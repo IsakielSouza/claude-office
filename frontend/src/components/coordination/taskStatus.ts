@@ -10,6 +10,7 @@ export type TaskStatus =
   | "error"
   | "done"
   | "backlog"
+  | "epic"
   | "unknown";
 
 export type TaskGroup = "need_you" | "in_progress" | "queue" | "history";
@@ -17,8 +18,11 @@ export type TaskGroup = "need_you" | "in_progress" | "queue" | "history";
 const AREA_LABEL = /^area:|^afk$/;
 
 /** Epic = guarda-chuva: não é task final, o dev-loop ignora (não despacha). Na UI
- *  aparece semi-transparente e SEM Play, igual ao backlog. `epic` sobrepõe o status
- *  derivado (todo/sem_dono) só pra fins visuais — a derivação de status não muda. */
+ *  aparece semi-transparente e SEM Play, igual ao backlog, e — como o backlog —
+ *  vive no grupo `history` (FORA da fila ativa e dos contadores de fila). O label
+ *  `epic` vira o status `epic` em `deriveStatus` quando a task está OPEN e parada
+ *  (não em execução/aguardando/erro/pending). Este helper continua sendo a fonte
+ *  do label pra estilização visual (muted) independente do status derivado. */
 export function isEpic(task: CoordTask): boolean {
   return task.labels.includes("epic");
 }
@@ -59,13 +63,18 @@ export function deriveStatus(
     return "error";
 
   if (task.state === "OPEN") {
+    // Epic (guarda-chuva) parado: vira o status próprio `epic` → grupo `history`,
+    // saindo da fila ativa/contadores igual ao backlog. Só vale pra OPEN e só aqui
+    // embaixo: done/parked/backlog/running/pending/waiting_agent/error já venceram
+    // acima (um epic em execução continua "running", etc.). O dev-loop ignora epic.
+    if (task.labels.includes("epic")) return "epic";
     // "Sem agente" (afk ocioso): pronto pro dispatch, só esperando o cron do
     // dev-loop. Fonte de verdade do "tem agente ativo" = label wip + claim em
     // work_claims (:5433) — ambos já excluídos acima (running/waiting_agent),
     // mas um label `wip` órfão (race, claim caiu) ainda pode estar presente, então
-    // checamos explicitamente. `epic` é guarda-chuva, não vai pro dispatch.
+    // checamos explicitamente.
     const hasAfk = task.labels.includes("afk");
-    const blocked = task.labels.includes("wip") || task.labels.includes("epic");
+    const blocked = task.labels.includes("wip");
     if (hasAfk && !blocked) return "sem_agente";
     // "Sem dono" (órfã): OPEN sem nenhum `area:*` = nenhum projeto/agente
     // responsável. Com área (ou afk) → todo (tem dono, na fila).
@@ -115,6 +124,7 @@ export function statusGroup(status: TaskStatus): TaskGroup {
       return "queue";
     case "done":
     case "backlog":
+    case "epic":
       return "history";
   }
 }

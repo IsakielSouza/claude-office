@@ -101,10 +101,10 @@ describe("deriveStatus", () => {
       "sem_agente",
     );
   });
-  it("OPEN afk + epic → todo (epic é guarda-chuva, fora do dispatch)", () => {
+  it("OPEN afk + epic → epic (guarda-chuva sai da fila ativa, fora do dispatch)", () => {
     expect(
       deriveStatus(baseTask({ labels: ["afk", "epic", "area:office"] }), []),
-    ).toBe("todo");
+    ).toBe("epic");
   });
   it("OPEN afk + label wip órfão → todo (não conta como sem-agente)", () => {
     expect(deriveStatus(baseTask({ labels: ["afk", "wip"] }), [])).toBe("todo");
