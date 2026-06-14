@@ -37,11 +37,13 @@ import {
   deriveStatus,
   statusGroup,
   idleSince,
+  isEpic,
   formatStuckTime,
   DEFAULT_IDLE_ALERT_MS,
   type TaskStatus,
   type TaskGroup,
 } from "@/components/coordination/taskStatus";
+import { TaskLabels } from "@/components/coordination/TaskLabels";
 import { useRunAgentNow } from "@/components/coordination/useRunAgentNow";
 import { AgentStatePill } from "@/components/coordination/AgentStatePill";
 import HitlAnswerModal from "@/components/coordination/HitlAnswerModal";
@@ -1880,9 +1882,14 @@ function TaskCard({
   const st = statusByRef.get(t.source_ref) ?? "unknown";
   const border = GROUP_BORDER[statusGroup(st)];
   const done = st === "done";
+  // Epic e backlog = guarda-chuva/someday: não despacham. Aparecem semi-
+  // transparentes (mesma de-ênfase) — não são trabalho ativo nem têm Play.
+  const muted = isEpic(t) || st === "backlog";
   return (
     <div
-      className="rounded-xl px-3.5 py-3 bg-white/5 border border-white/10 hover:bg-[rgba(168,85,247,0.06)] transition-colors"
+      className={`rounded-xl px-3.5 py-3 bg-white/5 border border-white/10 hover:bg-[rgba(168,85,247,0.06)] transition-colors${
+        muted ? " opacity-60" : ""
+      }`}
       style={{ borderLeft: `3px solid ${border}` }}
     >
       <div
@@ -1924,6 +1931,8 @@ function TaskCard({
           </a>
         )}
       </div>
+      {/* Labels da issue (área, disposição, fila etc.) — chips discretos. */}
+      <TaskLabels labels={t.labels} className="mt-2" max={5} />
     </div>
   );
 }

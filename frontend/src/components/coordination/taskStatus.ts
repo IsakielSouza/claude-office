@@ -16,6 +16,13 @@ export type TaskGroup = "need_you" | "in_progress" | "queue" | "history";
 
 const AREA_LABEL = /^area:|^afk$/;
 
+/** Epic = guarda-chuva: não é task final, o dev-loop ignora (não despacha). Na UI
+ *  aparece semi-transparente e SEM Play, igual ao backlog. `epic` sobrepõe o status
+ *  derivado (todo/sem_dono) só pra fins visuais — a derivação de status não muda. */
+export function isEpic(task: CoordTask): boolean {
+  return task.labels.includes("epic");
+}
+
 /** Traduz os campos técnicos (issue + claim + run + hitl) num status humano. */
 export function deriveStatus(
   task: CoordTask,

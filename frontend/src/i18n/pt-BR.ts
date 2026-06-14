@@ -309,6 +309,7 @@ const ptBR: Record<TranslationKey, string> = {
   "tasks.prioritize": "Priorizar",
   "tasks.play": "Play",
   "tasks.playTitle": "Despachar esta issue agora (não espera o cron)",
+  "tasks.epicNoPlay": "Epic (guarda-chuva) — não despacha, não tem Play",
   "tasks.playConfirm":
     "Despachar #{n} agora? Dispara um agente e custa tokens.",
   "tasks.playStarted": "#{n} despachada ✓",

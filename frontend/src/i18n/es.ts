@@ -309,6 +309,7 @@ const es: Record<TranslationKey, string> = {
   "tasks.prioritize": "Priorizar",
   "tasks.play": "Play",
   "tasks.playTitle": "Despachar esta issue ahora (no espera el cron)",
+  "tasks.epicNoPlay": "Epic (paraguas) — no se despacha, sin Play",
   "tasks.playConfirm":
     "¿Despachar #{n} ahora? Lanza un agente y consume tokens.",
   "tasks.playStarted": "#{n} despachada ✓",

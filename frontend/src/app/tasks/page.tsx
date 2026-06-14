@@ -32,9 +32,11 @@ import {
   queueRank,
   formatStuckTime,
   applyStartedOverride,
+  isEpic,
   DEFAULT_SLA_MS,
   type TaskStatus,
 } from "@/components/coordination/taskStatus";
+import { TaskLabels } from "@/components/coordination/TaskLabels";
 import {
   areaKeysOf,
   agentKeysOf,
@@ -572,10 +574,15 @@ export default function TasksPage(): React.ReactNode {
     const stuck = formatStuckTime(stuckSince(t, status), nowMs, DEFAULT_SLA_MS);
     const am = agentModel(t, status);
     const busy = processing.has(t.source_ref);
+    // Epic = guarda-chuva: semi-transparente e SEM ações de disparo/fila, igual
+    // ao backlog (o dev-loop ignora epic — não é task final).
+    const epic = isEpic(t);
     return (
       <div
         key={t.source_ref}
-        className="flex items-center gap-3 px-3 py-3 border-t border-slate-900 hover:bg-slate-900/40"
+        className={`flex items-center gap-3 px-3 py-3 border-t border-slate-900 hover:bg-slate-900/40${
+          epic ? " opacity-60" : ""
+        }`}
       >
         {queuePos !== undefined && (
           <span
@@ -613,6 +620,7 @@ export default function TasksPage(): React.ReactNode {
               <span className="text-rose-400/80"> · {t.run_status}</span>
             )}
           </div>
+          <TaskLabels labels={t.labels} className="mt-1" />
         </div>
         <div
           className={`text-sm font-bold w-44 shrink-0 ${STATUS_COLOR[status]}`}
@@ -631,7 +639,14 @@ export default function TasksPage(): React.ReactNode {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {busy ? (
+          {epic ? (
+            <span
+              className="text-xs font-bold text-slate-500 px-2"
+              title={tr("tasks.epicNoPlay")}
+            >
+              epic
+            </span>
+          ) : busy ? (
             <span className="text-sm font-bold text-sky-300 animate-pulse px-2">
               ⏳ {tr("tasks.processing")}
             </span>

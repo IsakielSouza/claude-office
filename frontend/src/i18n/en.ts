@@ -307,6 +307,7 @@ const en = {
   "tasks.prioritize": "Prioritize",
   "tasks.play": "Play",
   "tasks.playTitle": "Dispatch this issue now (doesn't wait for the cron)",
+  "tasks.epicNoPlay": "Epic (umbrella) — not dispatched, no Play",
   "tasks.playConfirm":
     "Dispatch #{n} now? It launches an agent and costs tokens.",
   "tasks.playStarted": "#{n} dispatched ✓",
