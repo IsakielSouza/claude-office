@@ -1015,6 +1015,74 @@ async def _qa_reviewers(db: AsyncSession) -> dict[str, tuple[str, str]]:
     return out
 
 
+# Gate QA VINCULANTE (#843): replica EXATAMENTE o devops-loop.sh / local-deploy.
+# qa_approved = existe review cujo body casa o marcador GO E está vinculado ao head
+# atual via "(head <SHA7>)". A regex conjunta evita falso-positivo de reviews
+# parciais (feedback_bash_gate_test_go_falso_positivo); o formato literal do
+# marcador é binding (feedback_qa_marcador_binding_obrigatorio).
+_QA_MARKER_RE = re.compile(r"## QA-[A-Z0-9]+ VEREDITO:")
+_QA_GO_RE = re.compile(r"## QA-[A-Z0-9]+ VEREDITO: ✅ GO")
+
+
+def _qa_gate_from_reviews(
+    reviews: list[dict[str, Any]], head_oid: str
+) -> bool:
+    """Lógica pura do gate QA (testável sem gh). Espelha o devops-loop.sh:
+
+    entre os reviews cujo body tem o marcador E está vinculado ao head via
+    "(head <SHA7>)", pega o mais recente por submittedAt; GO sse esse body casa
+    a regex GO conjunta (evita falso-positivo de '✅'/'GO' soltos no corpo).
+    """
+    sha7 = (head_oid or "")[:7]
+    if not sha7:
+        return False
+    head_tag = f"(head {sha7})"
+    bound = [
+        r
+        for r in reviews
+        if (b := str(r.get("body") or "")) and _QA_MARKER_RE.search(b) and head_tag in b
+    ]
+    if not bound:
+        return False
+    latest = max(bound, key=lambda r: str(r.get("submittedAt") or ""))
+    return bool(_QA_GO_RE.search(str(latest.get("body") or "")))
+
+
+async def _pr_qa_approved(repo: str, number: int | None) -> bool:
+    """True se o head atual do PR tem veredito QA ✅ GO (mesmo gate do devops-loop).
+
+    Busca reviews + headRefOid via `gh pr view`. Entre os reviews com o marcador
+    vinculado ao head (SHA7), pega o mais recente; GO sse o body casa a regex GO.
+    Degrade gracioso: gh fora / JSON inválido / sem head → False (não aprovado).
+    """
+    if not number:
+        return False
+    proc = await asyncio.create_subprocess_exec(
+        "gh",
+        "pr",
+        "view",
+        str(number),
+        "--repo",
+        f"hmtrack/{repo}",
+        "--json",
+        "reviews,headRefOid",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    out, err = await proc.communicate()
+    if proc.returncode != 0:
+        logger.warning(
+            "open-prs qa-gate %s#%s falhou: %s", repo, number, err.decode()[:160]
+        )
+        return False
+    try:
+        data = cast("dict[str, Any]", json.loads(out.decode() or "{}"))
+    except json.JSONDecodeError:
+        return False
+    reviews = cast("list[dict[str, Any]]", data.get("reviews") or [])
+    return _qa_gate_from_reviews(reviews, str(data.get("headRefOid") or ""))
+
+
 async def _fetch_open_prs(db: AsyncSession) -> dict[str, Any]:
     """gh search prs --owner hmtrack --state open, agrupado por repo→projeto,
     enriquecido com o QA reviewer + previsão da próxima análise (cron)."""
@@ -1053,6 +1121,15 @@ async def _fetch_open_prs(db: AsyncSession) -> dict[str, Any]:
     qa = await _qa_reviewers(db)
     now = datetime.now()
     ordered = sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    # Gate QA por PR (#843): enriquece cada PR com qa_approved (head com ✅ GO).
+    # Concorrente (≤ poucos PRs abertos); falha de um PR vira False, nunca derruba.
+    all_prs = [(repo, pr) for repo, prs in ordered for pr in prs]
+    flags = await asyncio.gather(
+        *(_pr_qa_approved(repo, pr.get("number")) for repo, pr in all_prs),
+        return_exceptions=True,
+    )
+    for (_, pr), flag in zip(all_prs, flags, strict=True):
+        pr["qa_approved"] = flag is True
     by_project = [_pr_group(repo, prs, qa, now) for repo, prs in ordered]
     return {"total": len(rows), "by_project": by_project, "stale": False}
 

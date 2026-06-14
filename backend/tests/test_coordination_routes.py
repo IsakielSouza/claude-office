@@ -1066,3 +1066,61 @@ def test_dispatch_degrade_503_when_db_down() -> None:
         assert r.status_code == 503
     finally:
         app.dependency_overrides.pop(get_coordination_db, None)
+
+
+# ── Gate QA por PR (#843) — lógica pura _qa_gate_from_reviews ──────────────────
+def _review(body: str, at: str = "2026-06-14T00:00:00Z") -> dict[str, object]:
+    return {"body": body, "submittedAt": at}
+
+
+def test_qa_gate_go_no_head_atual() -> None:
+    from app.api.routes.coordination import _qa_gate_from_reviews
+
+    head = "abc1234deadbeef"
+    reviews = [_review("## QA-API VEREDITO: ✅ GO — ok (head abc1234)")]
+    assert _qa_gate_from_reviews(reviews, head) is True
+
+
+def test_qa_gate_sem_marcador_no_head_eh_falso() -> None:
+    from app.api.routes.coordination import _qa_gate_from_reviews
+
+    head = "abc1234deadbeef"
+    # GO, mas vinculado a um head ANTIGO → não aprova o head atual.
+    reviews = [_review("## QA-API VEREDITO: ✅ GO (head 9999999)")]
+    assert _qa_gate_from_reviews(reviews, head) is False
+
+
+def test_qa_gate_reject_no_head_eh_falso() -> None:
+    from app.api.routes.coordination import _qa_gate_from_reviews
+
+    head = "abc1234deadbeef"
+    reviews = [_review("## QA-FRONT VEREDITO: ❌ MUDANÇAS (head abc1234)")]
+    assert _qa_gate_from_reviews(reviews, head) is False
+
+
+def test_qa_gate_pega_review_mais_recente() -> None:
+    from app.api.routes.coordination import _qa_gate_from_reviews
+
+    head = "abc1234deadbeef"
+    reviews = [
+        _review("## QA-API VEREDITO: ✅ GO (head abc1234)", "2026-06-14T00:00:00Z"),
+        _review("## QA-API VEREDITO: ❌ NO-GO (head abc1234)", "2026-06-14T01:00:00Z"),
+    ]
+    # O mais recente é o ❌ → não aprova.
+    assert _qa_gate_from_reviews(reviews, head) is False
+
+
+def test_qa_gate_falso_positivo_go_solto_nao_aprova() -> None:
+    from app.api.routes.coordination import _qa_gate_from_reviews
+
+    head = "abc1234deadbeef"
+    # "✅" e "GO" soltos, sem o marcador conjunto → regex GO não casa.
+    reviews = [_review("Parece ✅ e dei um GO informal, mas (head abc1234)")]
+    assert _qa_gate_from_reviews(reviews, head) is False
+
+
+def test_qa_gate_head_vazio_eh_falso() -> None:
+    from app.api.routes.coordination import _qa_gate_from_reviews
+
+    reviews = [_review("## QA-API VEREDITO: ✅ GO (head abc1234)")]
+    assert _qa_gate_from_reviews(reviews, "") is False

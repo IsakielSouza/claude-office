@@ -1283,21 +1283,29 @@ function PrAgentPlay({
   role,
   icon,
   noAgentTip,
+  gateDisabled = false,
+  gateTip,
 }: {
   agent: CoordAgent | null;
   role: string;
   icon: string;
   noAgentTip: string;
+  /** Estágio do PR bloqueia o disparo (#843): QA já aprovou (espera DevOps) ou
+   *  DevOps ainda sem GO (espera QA). Tem precedência sobre o estado de busy. */
+  gateDisabled?: boolean;
+  gateTip?: string;
 }): React.ReactNode {
   // ocupado = claim/loop ativo (ou override otimista do started, #839): evita
   // forçar 2º loop e reflete 'Em execução' como pill 'Ocupado' canônico.
   const { running, busy, msg, runNow } = useRunAgentNow(agent);
-  const disabled = !agent || running || busy;
+  const disabled = !agent || running || busy || gateDisabled;
   const tip = !agent
     ? noAgentTip
-    : busy
-      ? `${agent.nome} já tem claim/loop ativo`
-      : `rodar ${agent.nome} agora (${role}) — sem esperar o cron`;
+    : gateDisabled
+      ? (gateTip ?? `${role} indisponível neste estágio`)
+      : busy
+        ? `${agent.nome} já tem claim/loop ativo`
+        : `rodar ${agent.nome} agora (${role}) — sem esperar o cron`;
   return (
     <span className="flex items-center gap-1.5">
       <button
@@ -1411,20 +1419,28 @@ function PrModal({
                     </>
                   )}
                 </div>
-                {/* ▶ Play por grupo (#838): roda QA/DevOps do repo agora, sem
-                    esperar o cron. Agente derivado do roster vivo (agentFor). */}
+                {/* ▶ Play por grupo (#838) com gate de estágio (#843): QA só
+                    enquanto há PR sem GO; DevOps só quando há PR com ✅ GO no head.
+                    Botões são por repo, então agregamos: QA bloqueado quando TODOS
+                    os PRs já têm GO; DevOps liberado quando ALGUM PR tem GO. */}
                 <div className="flex items-center gap-1.5 mb-2">
                   <PrAgentPlay
                     agent={agentFor(g.repo, "qa")}
                     role="Chamar QA"
                     icon="🔍"
                     noAgentTip={`sem agente QA no roster p/ ${g.repo}`}
+                    gateDisabled={
+                      g.prs.length > 0 && g.prs.every((p) => p.qa_approved)
+                    }
+                    gateTip="QA aprovado — aguarda DevOps"
                   />
                   <PrAgentPlay
                     agent={agentFor(g.repo, "devops")}
                     role="DevOps"
                     icon="🚀"
                     noAgentTip={`sem agente DevOps no roster p/ ${g.repo}`}
+                    gateDisabled={!g.prs.some((p) => p.qa_approved)}
+                    gateTip="aguardando QA"
                   />
                 </div>
                 <ul className="space-y-1.5">

@@ -275,6 +275,8 @@ export interface CoordOpenPr {
   title: string;
   url: string;
   created_at: string;
+  /** Head atual tem veredito QA ✅ GO (#843) — gateia QA vs DevOps no PrModal. */
+  qa_approved: boolean;
 }
 export interface CoordOpenPrsByProject {
   repo: string;
