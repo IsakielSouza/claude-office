@@ -269,6 +269,7 @@ const ptBR: Record<TranslationKey, string> = {
   "tasks.group.needYou": "⚠ Precisa de você",
   "tasks.group.inProgress": "⚙ Em andamento",
   "tasks.group.queue": "📥 Fila",
+  "tasks.group.backlog": "🗃️ Backlog",
   "tasks.status.pending": "Pendente",
   "tasks.status.error": "Erro",
   "tasks.status.running": "Em execução",
@@ -331,6 +332,13 @@ const ptBR: Record<TranslationKey, string> = {
   "tasks.respondPlaceholder": "Resposta pro agente (vira comentário na issue)…",
   "tasks.respondSend": "Responder",
   "tasks.respondDone": "Resposta enviada ✓",
+  "tasks.backlogApprove": "Aprovar para desenvolvimento",
+  "tasks.backlogApproveTitle": "Mover este item do backlog para o fluxo de dev",
+  "tasks.backlogModalHint":
+    "Aprovar remove o label backlogs e adiciona afk — o item sai do someday e entra na fila do dispatch. O dev-loop/triagem cuida a partir daí.",
+  "tasks.backlogNoArea":
+    "Sem area:* neste item — será aprovado mesmo assim (afk), e a triagem define o dono.",
+  "tasks.backlogApproved": "#{n} aprovada para desenvolvimento ✓",
 };
 
 export default ptBR;

@@ -22,6 +22,7 @@ import {
 } from "@/components/coordination/coordinationApi";
 import { approveAction } from "@/components/coordination/taskBatch";
 import TaskDetailModal from "@/components/coordination/TaskDetailModal";
+import BacklogApproveModal from "@/components/coordination/BacklogApproveModal";
 import HitlAnswerModal from "@/components/coordination/HitlAnswerModal";
 import { CreateTaskForm } from "@/components/coordination/CreateTaskForm";
 import {
@@ -100,6 +101,8 @@ export default function TasksPage(): React.ReactNode {
   const [selectedPrompt, setSelectedPrompt] = useState<HitlPrompt | null>(null);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [detailTask, setDetailTask] = useState<CoordTask | null>(null);
+  // Item de backlog clicado → abre o modal "Aprovar para desenvolvimento".
+  const [backlogTask, setBacklogTask] = useState<CoordTask | null>(null);
   const [feedback, setFeedback] = useState<string>("");
   // Filtros multi-seleção (#818): Status, Projeto/Área, Agente. Default vazio =
   // mostra todo o trabalho vivo e ESCONDE as fechadas (done não vem marcado).
@@ -253,6 +256,21 @@ export default function TasksPage(): React.ReactNode {
         .filter((t) => deriveStatus(t, prompts) === "done")
         .sort((a, b) => b.number - a.number),
     [filtered, prompts],
+  );
+
+  // Backlog (label `backlogs`): someday/longo prazo. Fica VISÍVEL (não escondido
+  // como `done`), mas SEM Play/dispatch — só clicar pra aprovar p/ desenvolvimento.
+  // Some otimista quando aprovado nesta sessão (resolved).
+  const backlogTasks = useMemo(
+    () =>
+      filtered
+        .filter(
+          (t) =>
+            deriveStatus(t, prompts) === "backlog" &&
+            !resolved.has(t.source_ref),
+        )
+        .sort((a, b) => a.number - b.number),
+    [filtered, prompts, resolved],
   );
 
   const groups = useMemo(() => {
@@ -450,6 +468,14 @@ export default function TasksPage(): React.ReactNode {
     } finally {
       markProcessing(ref, false);
     }
+  };
+
+  // Backlog aprovado p/ dev (backlogs→afk, feito no modal): some otimista da lista
+  // e re-sincroniza, igual ao fluxo de approve. `n` só pro feedback.
+  const onBacklogApproved = (ref: string, n: number) => {
+    setResolved((s) => new Set(s).add(ref));
+    setFeedback(tr("tasks.backlogApproved", { n }));
+    void refetch();
   };
 
   // Clique no título/código → detalhes (prompt do banco abre o modal HITL).
@@ -887,6 +913,36 @@ export default function TasksPage(): React.ReactNode {
               false,
               true,
             )}
+          {backlogTasks.length > 0 && (
+            <section className="mb-5">
+              <h2 className="text-sm font-extrabold tracking-wide mb-1 text-yellow-600">
+                {tr("tasks.group.backlog")} — {backlogTasks.length}
+              </h2>
+              <div className="border border-slate-800 rounded-lg overflow-hidden">
+                {backlogTasks.map((t) => (
+                  <button
+                    key={t.source_ref}
+                    onClick={() => setBacklogTask(t)}
+                    title={tr("tasks.backlogApproveTitle")}
+                    className="w-full flex items-center gap-3 px-3 py-3 border-t border-slate-900 hover:bg-slate-900/40 text-left"
+                  >
+                    <span className="font-mono font-bold text-base w-16 shrink-0 text-yellow-600">
+                      #{t.number}
+                    </span>
+                    <span className="flex-1 min-w-0 truncate">
+                      {t.title ?? "—"}
+                      <span className="block text-xs text-slate-500 mt-0.5">
+                        {t.project ?? "—"}
+                      </span>
+                    </span>
+                    <span className="text-sm font-bold w-44 shrink-0 text-yellow-600">
+                      {tr("tasks.status.backlog")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
           {showClosed &&
             renderGroup("tasks.status.done", doneTasks, "text-emerald-400")}
         </>
@@ -928,6 +984,13 @@ export default function TasksPage(): React.ReactNode {
         prompt={selectedPrompt}
         onClose={() => setSelectedPrompt(null)}
         onSubmit={handleAnswer}
+      />
+
+      <BacklogApproveModal
+        key={`backlog-${backlogTask?.source_ref ?? "none"}`}
+        task={backlogTask}
+        onClose={() => setBacklogTask(null)}
+        onApproved={(ref) => onBacklogApproved(ref, backlogTask?.number ?? 0)}
       />
 
       <TaskDetailModal

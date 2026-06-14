@@ -498,6 +498,13 @@ export const approveTask = (
 ): Promise<{ source_ref: string; action: string }> =>
   mutate(`/tasks/${encodeURIComponent(sourceRef)}/approve`, "POST");
 
+/** Aprovar um item do BACKLOG p/ desenvolvimento: remove `backlogs` + adiciona
+ *  `afk` via backend — sai do someday e entra na fila do dispatch. */
+export const approveBacklog = (
+  sourceRef: string,
+): Promise<{ source_ref: string; action: string }> =>
+  mutate(`/tasks/${encodeURIComponent(sourceRef)}/approve-backlog`, "POST");
+
 /** Atribuir dono (#840): issue sem `area:*` (ou afk ociosa) ganha `area:<x>`+`afk`
  *  via backend — sai de "Sem dono"/"Sem agente" e entra na fila do dispatch. */
 export const assignArea = (

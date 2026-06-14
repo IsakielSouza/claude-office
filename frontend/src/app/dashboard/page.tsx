@@ -24,6 +24,7 @@ import {
   answerHitl,
   respondTask,
   assignArea,
+  approveBacklog,
   dispatchIssueNow,
   type CoordDashboard,
   type CoordTask,
@@ -457,6 +458,11 @@ export default function DashboardPage(): React.ReactNode {
       queue: [] as CoordTask[],
     };
     if (!data) return empty;
+    // Concluídas (done) ficam ESCONDIDAS por padrão (#req1): só entram no board
+    // quando "Concluída" está marcada. Pega tanto CLOSED quanto OPEN+parked.
+    const boardTasks = showClosed
+      ? filtered
+      : filtered.filter((t) => statusByRef.get(t.source_ref) !== "done");
     const shown = new Set<string>();
     const columns = data.agents
       .filter((a) => !a.archived_at)
@@ -465,16 +471,16 @@ export default function DashboardPage(): React.ReactNode {
         (a) => !search || a.nome.toLowerCase().includes(search.toLowerCase()),
       )
       .map((a) => {
-        const tasks = filtered.filter(
+        const tasks = boardTasks.filter(
           (t) => t.claim_agent === a.nome || t.run_agent === a.nome,
         );
         for (const t of tasks) shown.add(t.source_ref);
         return { agent: a, color: colorFor(a.nome), tasks };
       })
       .filter(({ tasks }) => !filterActive || tasks.length > 0);
-    const queue = filtered.filter((t) => !shown.has(t.source_ref));
+    const queue = boardTasks.filter((t) => !shown.has(t.source_ref));
     return { columns, queue };
-  }, [data, filtered, filters.agent, search, filterActive]);
+  }, [data, filtered, filters.agent, search, filterActive, showClosed, statusByRef]);
 
   // clicar "responder" numa task pending: abre o modal HITL se houver prompt no DB
   // (canal hitl_prompts → web); senão (label hitl sem prompt) cai na issue.
@@ -963,6 +969,7 @@ export default function DashboardPage(): React.ReactNode {
       {showBacklog && (
         <BacklogModal
           tasks={backlogTasks}
+          onChanged={refetch}
           onClose={() => setShowBacklog(false)}
         />
       )}
@@ -1288,11 +1295,61 @@ function OrphansModal({
   );
 }
 
+/** ✓ Aprovar p/ dev inline na linha do backlog: remove `backlogs`+adiciona `afk`
+ *  (backlogs→afk) — sai do someday e entra na fila do dispatch. SEM Play/dispatch
+ *  direto: o backlog só é PROMOVIDO ao fluxo de dev, não despachado na hora. */
+function InlineBacklogApprove({
+  task,
+  onChanged,
+}: {
+  task: CoordTask;
+  onChanged: () => void;
+}): React.ReactNode {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const apply = async () => {
+    if (busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await approveBacklog(task.source_ref);
+      setMsg("✓ aprovada p/ dev");
+      onChanged();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "erro");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-1.5 flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => void apply()}
+        disabled={busy}
+        title="remover do backlog e mandar pra fila de desenvolvimento (afk)"
+        className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold text-[#34d399] border border-[rgba(52,211,153,0.4)] bg-[rgba(52,211,153,0.1)] hover:bg-[rgba(52,211,153,0.2)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        {busy ? "…" : "✓ Aprovar para desenvolvimento"}
+      </button>
+      {msg && (
+        <span className="text-[11px] text-[#9a93b3] whitespace-nowrap">
+          {msg}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function BacklogModal({
   tasks,
+  onChanged,
   onClose,
 }: {
   tasks: CoordTask[];
+  onChanged: () => void;
   onClose: () => void;
 }): React.ReactNode {
   return (
@@ -1357,6 +1414,8 @@ function BacklogModal({
                       </span>
                     )}
                   </a>
+                  {/* Aprovar p/ dev inline (backlogs→afk) — sem Play/dispatch. */}
+                  <InlineBacklogApprove task={t} onChanged={onChanged} />
                 </li>
               );
             })}

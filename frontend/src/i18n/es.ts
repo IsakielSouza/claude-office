@@ -269,6 +269,7 @@ const es: Record<TranslationKey, string> = {
   "tasks.group.needYou": "⚠ Te necesita",
   "tasks.group.inProgress": "⚙ En curso",
   "tasks.group.queue": "📥 Cola",
+  "tasks.group.backlog": "🗃️ Backlog",
   "tasks.status.pending": "Pendiente",
   "tasks.status.error": "Error",
   "tasks.status.running": "En ejecución",
@@ -332,6 +333,13 @@ const es: Record<TranslationKey, string> = {
     "Respuesta para el agente (se publica como comentario en la issue)…",
   "tasks.respondSend": "Responder",
   "tasks.respondDone": "Respuesta enviada ✓",
+  "tasks.backlogApprove": "Aprobar para desarrollo",
+  "tasks.backlogApproveTitle": "Mover este ítem del backlog al flujo de dev",
+  "tasks.backlogModalHint":
+    "Aprobar quita la etiqueta backlogs y añade afk — el ítem sale del someday y entra en la cola del dispatch. El dev-loop/triage sigue desde ahí.",
+  "tasks.backlogNoArea":
+    "Sin area:* en este ítem — se aprobará igual (afk), y el triage define el dueño.",
+  "tasks.backlogApproved": "#{n} aprobada para desarrollo ✓",
 };
 
 export default es;

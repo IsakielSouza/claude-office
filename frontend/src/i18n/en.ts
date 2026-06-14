@@ -267,6 +267,7 @@ const en = {
   "tasks.group.needYou": "⚠ Needs you",
   "tasks.group.inProgress": "⚙ In progress",
   "tasks.group.queue": "📥 Queue",
+  "tasks.group.backlog": "🗃️ Backlog",
   "tasks.status.pending": "Pending",
   "tasks.status.error": "Error",
   "tasks.status.running": "Running",
@@ -330,6 +331,13 @@ const en = {
     "Reply for the agent (posted as a comment on the issue)…",
   "tasks.respondSend": "Respond",
   "tasks.respondDone": "Reply sent ✓",
+  "tasks.backlogApprove": "Approve for development",
+  "tasks.backlogApproveTitle": "Move this backlog item into the dev flow",
+  "tasks.backlogModalHint":
+    "Approving removes the backlogs label and adds afk — the item leaves the someday list and enters the dispatch queue. The dev-loop/triage picks it up from there.",
+  "tasks.backlogNoArea":
+    "No area:* on this item — it will still be approved (afk), and triage assigns the owner.",
+  "tasks.backlogApproved": "#{n} approved for development ✓",
 } as const;
 
 export type TranslationKey = keyof typeof en;
