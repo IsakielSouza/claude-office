@@ -16,7 +16,7 @@ const EMPTY: Destination = {
   enabled: true,
 };
 
-// `enabled` (boolean) é intencionalmente EXCLUÍDO — não é editado como texto.
+// `enabled` (boolean) é EXCLUÍDO da grade de texto — tem toggle próprio abaixo.
 const FIELDS: Array<[keyof Destination, string]> = [
   ["id", "ID (slug)"],
   ["label", "Rótulo"],
@@ -110,6 +110,9 @@ export function DestinationEditModal({
           >
             <span>
               {d.label} <span className="text-slate-500">({d.ssh_alias})</span>
+              {!d.enabled && (
+                <span className="ml-2 text-amber-400">· desabilitado</span>
+              )}
             </span>
             <span className="flex gap-3">
               <button
@@ -145,6 +148,16 @@ export function DestinationEditModal({
           </label>
         ))}
       </div>
+      <label className="flex items-center gap-2 mt-3 text-sm text-slate-300">
+        <input
+          type="checkbox"
+          className="accent-sky-500 disabled:opacity-50"
+          checked={draft.enabled}
+          disabled={disabled}
+          onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })}
+        />
+        Habilitado (destino aparece no seletor e pode receber deploy)
+      </label>
       {err && <p className="text-rose-400 text-sm mt-2">{err}</p>}
     </Modal>
   );

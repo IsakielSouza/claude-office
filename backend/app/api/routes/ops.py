@@ -161,7 +161,7 @@ async def ops_logs(run_id: str) -> dict[str, str]:
     return {"run_id": run_id, "log": path.read_text(encoding="utf-8", errors="replace")}
 
 
-@router.post("/{dest_id}/run", dependencies=[Depends(enforce_write_rate_limit)])
+@router.post("/{dest_id}/run", status_code=202, dependencies=[Depends(enforce_write_rate_limit)])
 async def run_deploy(
     dest_id: str, body: RunBody, db: Annotated[AsyncSession, Depends(get_db)]
 ) -> dict[str, Any]:

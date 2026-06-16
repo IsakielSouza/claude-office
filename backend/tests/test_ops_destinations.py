@@ -1,13 +1,14 @@
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import OpsDestination
 from app.main import app
 
 
 @pytest.mark.asyncio
-async def test_ops_destination_model_roundtrip(db_session):
+async def test_ops_destination_model_roundtrip(db_session: AsyncSession):
     dest = OpsDestination(
         id="teste",
         label="Teste",
@@ -105,6 +106,65 @@ def test_run_unknown_destination_404():
     client = TestClient(app)
     r = client.post("/api/v1/ops/naoexiste/run", json={"dry_run": True})
     assert r.status_code == 404
+
+
+def test_run_returns_202_accepted(monkeypatch: pytest.MonkeyPatch):
+    # Contrato async: POST /run aceita o trabalho e responde 202 (não 200).
+    from app.services import ops_runner as ops_mod
+
+    client = TestClient(app)
+    seed = {
+        "id": "run202",
+        "label": "Run 202",
+        "ssh_alias": "flt",
+        "remote_base": "/root/project",
+        "compose_file": "docker-compose.alocalizai.yml",
+        "front_api_url": "https://core.x/v1/",
+        "registry": "ghcr.io/isakielsouza",
+        "image_tag": "t",
+        "enabled": True,
+    }
+    assert client.post("/api/v1/ops/destinations", json=seed).status_code == 200
+
+    async def _fake_run(dest: OpsDestination, dry_run: bool) -> str:
+        return "20260616T120000Z"
+
+    monkeypatch.setattr(ops_mod.ops_runner, "run", _fake_run)
+    r = client.post("/api/v1/ops/run202/run", json={"dry_run": True})
+    assert r.status_code == 202
+    assert r.json()["run_id"] == "20260616T120000Z"
+
+
+def test_disabled_destination_can_be_reenabled_via_put():
+    # Toggle `enabled` pela UI mapeia para PUT — destino desabilitado some do
+    # seletor mas pode ser reabilitado.
+    client = TestClient(app)
+    body = {
+        "id": "toggleme",
+        "label": "Toggle",
+        "ssh_alias": "flt",
+        "remote_base": "/root/project",
+        "compose_file": "docker-compose.alocalizai.yml",
+        "front_api_url": "https://core.x/v1/",
+        "registry": "ghcr.io/isakielsouza",
+        "image_tag": "t",
+        "enabled": True,
+    }
+    assert client.post("/api/v1/ops/destinations", json=body).status_code == 200
+    # desabilita
+    assert (
+        client.put("/api/v1/ops/destinations/toggleme", json={**body, "enabled": False}).json()[
+            "enabled"
+        ]
+        is False
+    )
+    # reabilita
+    assert (
+        client.put("/api/v1/ops/destinations/toggleme", json={**body, "enabled": True}).json()[
+            "enabled"
+        ]
+        is True
+    )
 
 
 def test_status_idle():
