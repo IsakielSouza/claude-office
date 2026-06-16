@@ -1,5 +1,6 @@
 """API routes for Ops > Servidores (build + deploy de servidores HMTrack)."""
 
+from pathlib import Path as _Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,8 +9,10 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.coordination import enforce_write_rate_limit
+from app.config import get_settings
 from app.db.database import get_db
 from app.db.models import OpsDestination
+from app.services.ops_runner import ops_runner
 
 router = APIRouter(prefix="/ops", tags=["ops"])
 
@@ -82,3 +85,39 @@ async def delete_destination(
     await db.execute(delete(OpsDestination).where(OpsDestination.id == dest_id))
     await db.commit()
     return {"deleted": dest_id}
+
+
+class RunBody(BaseModel):
+    dry_run: bool = False
+
+
+@router.get("/status")
+async def ops_status() -> dict[str, Any]:
+    return ops_runner.status()
+
+
+@router.get("/logs/{run_id}")
+async def ops_logs(run_id: str) -> dict[str, str]:
+    path = _Path(get_settings().OPS_LOG_DIR) / f"{run_id}.log"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail={"error": "log não encontrado"})
+    return {"run_id": run_id, "log": path.read_text(encoding="utf-8", errors="replace")}
+
+
+@router.post("/{dest_id}/run", dependencies=[Depends(enforce_write_rate_limit)])
+async def run_deploy(
+    dest_id: str, body: RunBody, db: Annotated[AsyncSession, Depends(get_db)]
+) -> dict[str, Any]:
+    dest = await db.get(OpsDestination, dest_id)
+    if dest is None:
+        raise HTTPException(status_code=404, detail={"error": "destino não encontrado"})
+    if not dest.enabled:
+        raise HTTPException(status_code=422, detail={"error": "destino desabilitado"})
+    try:
+        run_id = await ops_runner.run(dest, body.dry_run)
+    except RuntimeError:
+        raise HTTPException(status_code=409, detail={
+            "error": "já em execução", "run_id": ops_runner.status()["run_id"],
+            "dest_id": ops_runner.current_dest_id()})
+    return {"run_id": run_id, "dest_id": dest_id, "dry_run": body.dry_run,
+            "started_at": ops_runner.status()["started_at"]}

@@ -48,3 +48,16 @@ def test_destinations_crud():
     assert client.delete("/api/v1/ops/destinations/cliente2").status_code == 200
     r = client.get("/api/v1/ops/destinations")
     assert not any(d["id"] == "cliente2" for d in r.json())
+
+
+def test_run_unknown_destination_404():
+    client = TestClient(app)
+    r = client.post("/api/v1/ops/naoexiste/run", json={"dry_run": True})
+    assert r.status_code == 404
+
+
+def test_status_idle():
+    client = TestClient(app)
+    r = client.get("/api/v1/ops/status")
+    assert r.status_code == 200
+    assert r.json()["step"] in ("idle", "done", "failed")
