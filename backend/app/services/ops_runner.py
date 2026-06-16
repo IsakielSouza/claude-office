@@ -11,6 +11,7 @@ from typing import Any
 
 from app.api.websocket import manager
 from app.config import get_settings
+from app.services.ops_validation import validate_destination_runtime
 
 
 class OpsRunner:
@@ -39,6 +40,10 @@ class OpsRunner:
         return {**self._state, "log_tail": list(self._buffer)[-200:]}
 
     async def run(self, dest: Any, dry_run: bool) -> str:
+        # Re-valida os campos de destino no boundary do runner (antes de montar
+        # o comando ssh). Linhas pré-existentes podem ter escapado do write-path
+        # Pydantic; aqui falhamos cedo com erro claro se algum campo for inválido.
+        validate_destination_runtime(dest)
         if self._running:
             raise RuntimeError("já em execução")
         async with self._lock:

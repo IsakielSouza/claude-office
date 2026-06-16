@@ -14,6 +14,12 @@ from app.config import get_settings
 from app.db.database import get_db
 from app.db.models import OpsDestination
 from app.services.ops_runner import ops_runner
+from app.services.ops_validation import (
+    COMPOSE_FILE_RE,
+    REMOTE_BASE_RE,
+    SSH_ALIAS_RE,
+    OpsValidationError,
+)
 
 router = APIRouter(prefix="/ops", tags=["ops"])
 
@@ -41,21 +47,21 @@ class DestinationBody(BaseModel):
     @field_validator("ssh_alias")
     @classmethod
     def _validate_ssh_alias(cls, v: str) -> str:
-        if not re.match(r"^[A-Za-z0-9._@-]+$", v):
+        if not SSH_ALIAS_RE.match(v):
             raise ValueError("ssh_alias inválido (sem espaços/metacaracteres)")
         return v
 
     @field_validator("remote_base")
     @classmethod
     def _validate_remote_base(cls, v: str) -> str:
-        if not re.match(r"^/[A-Za-z0-9._/-]+$", v):
+        if not REMOTE_BASE_RE.match(v):
             raise ValueError("remote_base deve ser caminho absoluto com chars seguros")
         return v
 
     @field_validator("compose_file")
     @classmethod
     def _validate_compose_file(cls, v: str) -> str:
-        if not re.match(r"^[A-Za-z0-9._-]+\.ya?ml$", v):
+        if not COMPOSE_FILE_RE.match(v):
             raise ValueError("compose_file deve ser um arquivo .yml/.yaml")
         return v
 
@@ -172,6 +178,8 @@ async def run_deploy(
         raise HTTPException(status_code=422, detail={"error": "destino desabilitado"})
     try:
         run_id = await ops_runner.run(dest, body.dry_run)
+    except OpsValidationError as exc:
+        raise HTTPException(status_code=422, detail={"error": str(exc)}) from exc
     except RuntimeError:
         raise HTTPException(
             status_code=409,

