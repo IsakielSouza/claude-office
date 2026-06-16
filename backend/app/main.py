@@ -104,6 +104,25 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_schema(conn)
 
+    # Seed do destino padrão (alocalizai) se a tabela estiver vazia.
+    from sqlalchemy import select as _select
+
+    from app.db.database import get_session_factory
+    from app.db.models import OpsDestination
+
+    async with get_session_factory()() as _s:
+        exists = (await _s.execute(_select(OpsDestination).limit(1))).first()
+        if not exists:
+            _s.add(
+                OpsDestination(
+                    id="alocalizai", label="alocalizai (flt)", ssh_alias="flt",
+                    remote_base="/root/project", compose_file="docker-compose.alocalizai.yml",
+                    front_api_url="https://core.alocalizai.com.br/v1/",
+                    registry="ghcr.io/isakielsouza", image_tag="alocalizai", enabled=True,
+                )
+            )
+            await _s.commit()
+
     await _reap_stale_sessions()
 
     git_service.start()
