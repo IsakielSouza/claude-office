@@ -11,6 +11,7 @@ const TABS = [
   { href: "/agents", label: "Agentes" },
   { href: "/agendas", label: "Agendas" },
   { href: "/tasks", label: "Tasks" },
+  { href: "/servidores", label: "Servidores" },
   { href: "/agent-runs", label: "Histórico" },
   { href: "/office", label: "Escritório" },
   { href: "/ajuda", label: "Ajuda" },
