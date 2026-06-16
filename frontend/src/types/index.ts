@@ -119,7 +119,16 @@ export interface EventDetail {
  * WebSocket message types sent from the backend over the /ws endpoint.
  */
 export interface WebSocketMessage {
-  type: "state_update" | "event" | "reload" | "git_status" | "session_deleted";
+  type:
+    | "state_update"
+    | "event"
+    | "reload"
+    | "git_status"
+    | "session_deleted"
+    // Deploy/ops feed (OpsRunner.broadcast_all) — chega no mesmo WS de sessão.
+    | "ops.step"
+    | "ops.log"
+    | "ops.result";
   timestamp: string;
   state?: import("./generated").GameState;
   event?: {

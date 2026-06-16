@@ -429,6 +429,21 @@ export function useWebSocketEvents({
               }),
             );
             break;
+
+          default:
+            // Mensagens ops.* (deploy: ops.step/ops.log/ops.result) são empurradas
+            // pelo OpsRunner via broadcast_all e chegam neste mesmo WS de sessão.
+            // Re-emite como CustomEvent para o useOpsStream consumir (mesmo padrão
+            // do session-deleted) — sem abrir um socket novo.
+            if (
+              typeof message.type === "string" &&
+              message.type.startsWith("ops.")
+            ) {
+              window.dispatchEvent(
+                new CustomEvent("ops-ws-message", { detail: message }),
+              );
+            }
+            break;
         }
       } catch (error) {
         console.error("[WS] Failed to parse message:", error);
