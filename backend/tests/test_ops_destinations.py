@@ -61,3 +61,15 @@ def test_status_idle():
     r = client.get("/api/v1/ops/status")
     assert r.status_code == 200
     assert r.json()["step"] in ("idle", "done", "failed")
+
+
+def test_logs_rejects_path_traversal():
+    client = TestClient(app)
+    r = client.get("/api/v1/ops/logs/..%2F..%2F..%2Fetc%2Fpasswd")
+    assert r.status_code in (400, 404)   # must NOT 200 with file contents
+
+
+def test_logs_rejects_bad_format():
+    client = TestClient(app)
+    r = client.get("/api/v1/ops/logs/not-a-valid-runid")
+    assert r.status_code == 400

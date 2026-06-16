@@ -1,5 +1,6 @@
 """API routes for Ops > Servidores (build + deploy de servidores HMTrack)."""
 
+import re
 from pathlib import Path as _Path
 from typing import Annotated, Any
 
@@ -15,6 +16,8 @@ from app.db.models import OpsDestination
 from app.services.ops_runner import ops_runner
 
 router = APIRouter(prefix="/ops", tags=["ops"])
+
+_RUN_ID_RE = re.compile(r"^\d{8}T\d{6}Z$")
 
 
 class DestinationBody(BaseModel):
@@ -98,6 +101,8 @@ async def ops_status() -> dict[str, Any]:
 
 @router.get("/logs/{run_id}")
 async def ops_logs(run_id: str) -> dict[str, str]:
+    if not _RUN_ID_RE.match(run_id):
+        raise HTTPException(status_code=400, detail={"error": "run_id inválido"})
     path = _Path(get_settings().OPS_LOG_DIR) / f"{run_id}.log"
     if not path.exists():
         raise HTTPException(status_code=404, detail={"error": "log não encontrado"})
