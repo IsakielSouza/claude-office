@@ -1,12 +1,18 @@
 import asyncio
+
 import pytest
+
 from app.services.ops_runner import OpsRunner
 
 
 class _Dest:
-    id = "t"; ssh_alias = "flt"; remote_base = "/root/project"
+    id = "t"
+    ssh_alias = "flt"
+    remote_base = "/root/project"
     compose_file = "docker-compose.alocalizai.yml"
-    front_api_url = "https://core.x/v1/"; registry = "ghcr.io/x"; image_tag = "t"
+    front_api_url = "https://core.x/v1/"
+    image_registry = "ghcr.io/x"
+    image_tag = "t"
 
 
 @pytest.mark.asyncio

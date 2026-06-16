@@ -5,7 +5,7 @@ from pathlib import Path as _Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,13 +31,67 @@ class DestinationBody(BaseModel):
     image_tag: str
     enabled: bool = True
 
+    @field_validator("id", "image_tag")
+    @classmethod
+    def _validate_slug(cls, v: str) -> str:
+        if not re.match(r"^[A-Za-z0-9._-]+$", v):
+            raise ValueError("apenas A-Za-z0-9._- são permitidos")
+        return v
+
+    @field_validator("ssh_alias")
+    @classmethod
+    def _validate_ssh_alias(cls, v: str) -> str:
+        if not re.match(r"^[A-Za-z0-9._@-]+$", v):
+            raise ValueError("ssh_alias inválido (sem espaços/metacaracteres)")
+        return v
+
+    @field_validator("remote_base")
+    @classmethod
+    def _validate_remote_base(cls, v: str) -> str:
+        if not re.match(r"^/[A-Za-z0-9._/-]+$", v):
+            raise ValueError("remote_base deve ser caminho absoluto com chars seguros")
+        return v
+
+    @field_validator("compose_file")
+    @classmethod
+    def _validate_compose_file(cls, v: str) -> str:
+        if not re.match(r"^[A-Za-z0-9._-]+\.ya?ml$", v):
+            raise ValueError("compose_file deve ser um arquivo .yml/.yaml")
+        return v
+
+    @field_validator("registry")
+    @classmethod
+    def _validate_registry(cls, v: str) -> str:
+        if not re.match(r"^[A-Za-z0-9._:/-]+$", v):
+            raise ValueError("registry inválido")
+        return v
+
+    @field_validator("front_api_url")
+    @classmethod
+    def _validate_front_api_url(cls, v: str) -> str:
+        if not (v.startswith("https://") or v.startswith("http://")):
+            raise ValueError("front_api_url deve começar com http:// ou https://")
+        return v
+
+    @field_validator("label")
+    @classmethod
+    def _validate_label(cls, v: str) -> str:
+        if not re.match(r"^[^\x00-\x1f`$;|&<>]+$", v):
+            raise ValueError("label contém caracteres não permitidos")
+        return v
+
 
 def _to_dict(d: OpsDestination) -> dict[str, Any]:
     return {
-        "id": d.id, "label": d.label, "ssh_alias": d.ssh_alias,
-        "remote_base": d.remote_base, "compose_file": d.compose_file,
-        "front_api_url": d.front_api_url, "registry": d.registry,
-        "image_tag": d.image_tag, "enabled": d.enabled,
+        "id": d.id,
+        "label": d.label,
+        "ssh_alias": d.ssh_alias,
+        "remote_base": d.remote_base,
+        "compose_file": d.compose_file,
+        "front_api_url": d.front_api_url,
+        "registry": d.image_registry,
+        "image_tag": d.image_tag,
+        "enabled": d.enabled,
     }
 
 
@@ -53,7 +107,9 @@ async def create_destination(
 ) -> dict[str, Any]:
     if (await db.get(OpsDestination, body.id)) is not None:
         raise HTTPException(status_code=409, detail={"error": "id já existe"})
-    dest = OpsDestination(**body.model_dump())
+    data = body.model_dump()
+    data["image_registry"] = data.pop("registry")
+    dest = OpsDestination(**data)
     db.add(dest)
     await db.commit()
     return _to_dict(dest)
@@ -67,8 +123,9 @@ async def update_destination(
     if dest is None:
         raise HTTPException(status_code=404, detail={"error": "destino não encontrado"})
     for k, v in body.model_dump().items():
-        if k != "id":
-            setattr(dest, k, v)
+        if k == "id":
+            continue
+        setattr(dest, "image_registry" if k == "registry" else k, v)
     await db.commit()
     return _to_dict(dest)
 
@@ -78,12 +135,7 @@ async def delete_destination(
     dest_id: str, db: Annotated[AsyncSession, Depends(get_db)]
 ) -> dict[str, str]:
     # Guard de concorrência: bloqueia remover o destino em execução.
-    # ops_runner só existe a partir da Task 4 — import defensivo até lá.
-    try:
-        from app.services.ops_runner import ops_runner
-    except ModuleNotFoundError:
-        ops_runner = None
-    if ops_runner is not None and ops_runner.is_running() and ops_runner.current_dest_id() == dest_id:
+    if ops_runner.is_running() and ops_runner.current_dest_id() == dest_id:
         raise HTTPException(status_code=409, detail={"error": "destino em execução"})
     await db.execute(delete(OpsDestination).where(OpsDestination.id == dest_id))
     await db.commit()
@@ -121,8 +173,17 @@ async def run_deploy(
     try:
         run_id = await ops_runner.run(dest, body.dry_run)
     except RuntimeError:
-        raise HTTPException(status_code=409, detail={
-            "error": "já em execução", "run_id": ops_runner.status()["run_id"],
-            "dest_id": ops_runner.current_dest_id()})
-    return {"run_id": run_id, "dest_id": dest_id, "dry_run": body.dry_run,
-            "started_at": ops_runner.status()["started_at"]}
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "já em execução",
+                "run_id": ops_runner.status()["run_id"],
+                "dest_id": ops_runner.current_dest_id(),
+            },
+        ) from None
+    return {
+        "run_id": run_id,
+        "dest_id": dest_id,
+        "dry_run": body.dry_run,
+        "started_at": ops_runner.status()["started_at"],
+    }
