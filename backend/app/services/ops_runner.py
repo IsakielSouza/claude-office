@@ -74,7 +74,13 @@ class OpsRunner:
             await self._broadcast(
                 {"type": "ops.step", "run_id": run_id, "step": "build", "status": "started"}
             )
-            rc = await self._stream("build", [s.OPS_BUILD_SCRIPT], cwd=s.OPS_ZARTOO_DIR, env=env)
+            rc = await self._stream(
+                "build",
+                [s.OPS_BUILD_SCRIPT],
+                cwd=s.OPS_ZARTOO_DIR,
+                env=env,
+                timeout=s.OPS_BUILD_TIMEOUT,
+            )
             if rc != 0:
                 return await self._finish(run_id, "failed", rc)
             if not dry_run:
@@ -86,7 +92,11 @@ class OpsRunner:
                     f"BASE={shlex.quote(dest.remote_base)} CF={shlex.quote(dest.compose_file)} "
                     f"/root/project/deploy-alocalizai.sh all"
                 )
-                rc = await self._stream("deploy", ["ssh", dest.ssh_alias, remote])
+                rc = await self._stream(
+                    "deploy",
+                    ["ssh", dest.ssh_alias, remote],
+                    timeout=s.OPS_DEPLOY_TIMEOUT,
+                )
                 if rc != 0:
                     return await self._finish(run_id, "failed", rc)
             await self._finish(run_id, "done", 0)
@@ -95,7 +105,12 @@ class OpsRunner:
             await self._finish(run_id, "failed", -1)
 
     async def _stream(
-        self, step: str, cmd: list[str], cwd: str | None = None, env: dict[str, str] | None = None
+        self,
+        step: str,
+        cmd: list[str],
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
     ) -> int:
         s = get_settings()
         Path(s.OPS_LOG_DIR).mkdir(parents=True, exist_ok=True)
@@ -108,17 +123,31 @@ class OpsRunner:
             stderr=asyncio.subprocess.STDOUT,
         )
         assert proc.stdout is not None
-        with logfile.open("a", encoding="utf-8") as fh:
-            fh.write(f"\n===== STEP {step}: {' '.join(cmd)} =====\n")
-            async for raw in proc.stdout:
-                line = raw.decode(errors="replace").rstrip("\n")
-                self._buffer.append(line)
-                fh.write(line + "\n")
-                fh.flush()
-                await self._broadcast(
-                    {"type": "ops.log", "run_id": self._state["run_id"], "step": step, "line": line}
-                )
-        return await proc.wait()
+        try:
+            async with asyncio.timeout(timeout):
+                with logfile.open("a", encoding="utf-8") as fh:
+                    fh.write(f"\n===== STEP {step}: {' '.join(cmd)} =====\n")
+                    async for raw in proc.stdout:
+                        line = raw.decode(errors="replace").rstrip("\n")
+                        self._buffer.append(line)
+                        fh.write(line + "\n")
+                        fh.flush()
+                        await self._broadcast(
+                            {
+                                "type": "ops.log",
+                                "run_id": self._state["run_id"],
+                                "step": step,
+                                "line": line,
+                            }
+                        )
+                return await proc.wait()
+        except TimeoutError:
+            self._buffer.append(
+                f"[runner] timeout no step '{step}' ({timeout}s) — matando processo"
+            )
+            proc.kill()
+            await proc.wait()
+            raise
 
     async def _finish(self, run_id: str, status: str, exit_code: int) -> None:
         self._state.update(

@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     OPS_BUILD_SCRIPT: str = str(Path.home() / "projects/zartoo/build-push-alocalizai.sh")
     OPS_ZARTOO_DIR: str = str(Path.home() / "projects/zartoo")
     OPS_LOG_DIR: str = str(Path.home() / ".claude-office/ops")
+    # Timeouts por step (segundos). None = sem timeout (perigoso em produção).
+    OPS_BUILD_TIMEOUT: int = 1800  # 30 min
+    OPS_DEPLOY_TIMEOUT: int = 600  # 10 min
 
     model_config = SettingsConfigDict(env_file=".env")
 
