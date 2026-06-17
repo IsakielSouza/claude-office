@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { getAgentJob } from "@/components/coordination/coordinationApi";
+import { getAgentJob, AgentJobStatus } from "@/components/coordination/coordinationApi";
 
 export interface ActiveJob {
   jobId: string;
@@ -61,9 +61,9 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
     set({ job: null, _pollInterval: null });
   },
 
-  async _updateFromApi(jobId) {
+  async _updateFromApi(jobId: string): Promise<void> {
     try {
-      const data = await getAgentJob(jobId);
+      const data: AgentJobStatus = await getAgentJob(jobId);
       set((state) => ({
         job: state.job
           ? {
