@@ -18,6 +18,7 @@ import {
   type CoordAgentMetrics,
 } from "@/components/coordination/coordinationApi";
 import { AgentTimelineModal } from "@/components/coordination/AgentTimelineModal";
+import { AgentFunctionsModal } from "@/components/coordination/AgentFunctionsModal";
 
 // status derivado pelo backend (busy = tem claim ativo; senão idle/offline do roster)
 const STATUS_COLORS: Record<string, string> = {
@@ -65,6 +66,7 @@ export default function AgentsPage(): React.ReactNode {
     "role" | "status" | "nome" | "last" | "claims"
   >("role");
   const [timelineAgent, setTimelineAgent] = useState<CoordAgent | null>(null);
+  const [functionsAgent, setFunctionsAgent] = useState<CoordAgent | null>(null);
 
   const [sevenDaysAgo] = useState(() =>
     new Date(Date.now() - 7 * 864e5).toISOString(),
@@ -272,7 +274,12 @@ export default function AgentsPage(): React.ReactNode {
                   className="border-t border-slate-900 hover:bg-slate-900/40"
                 >
                   <td className="px-3 py-2 font-mono text-slate-200">
-                    {a.nome}
+                    <button
+                      onClick={() => setFunctionsAgent(a)}
+                      className="text-slate-200 hover:text-white underline underline-offset-2 cursor-pointer bg-transparent border-0 p-0 font-inherit text-left"
+                    >
+                      {a.nome}
+                    </button>
                     {a.model && (
                       <span className="ml-2 rounded bg-indigo-900 px-1.5 py-0.5 text-xs">
                         {a.model}
@@ -485,6 +492,12 @@ export default function AgentsPage(): React.ReactNode {
         <AgentTimelineModal
           agent={timelineAgent}
           onClose={() => setTimelineAgent(null)}
+        />
+      )}
+      {functionsAgent && (
+        <AgentFunctionsModal
+          agent={functionsAgent}
+          onClose={() => setFunctionsAgent(null)}
         />
       )}
     </main>
