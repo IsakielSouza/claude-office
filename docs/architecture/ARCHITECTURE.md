@@ -786,5 +786,7 @@ All configuration is managed via environment variables or a `.env` file in the `
 
 - [README.md](../README.md) - Project overview and quick start
 - [CLAUDE.md](../CLAUDE.md) - AI assistant instructions and commands
+- [Deployment Guide](../guides/deployment.md) - Docker deployment and configuration
+- [Docker Tagging Strategy](docker-tagging-strategy.md) - Multi-tenant Docker image tagging strategy
 - [WHITEBOARD.md](WHITEBOARD.md) - Whiteboard multi-mode display documentation _(not yet created)_
 - [Claude Code JSONL Format](research/claude-code-jsonl-format.md) - Transcript file format research _(not yet created)_
