@@ -39,11 +39,14 @@ export function useWebSocketEvents({
 }: UseWebSocketEventsOptions): void {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const retryCountRef = useRef(0);
   const processedAgentsRef = useRef<Set<string>>(new Set());
 
   // Connection ID to track which connection is current (prevents stale onclose handlers)
   const connectionIdRef = useRef(0);
+
+  // Holds the latest `connect` so the reconnect timer can re-invoke it without
+  // `connect` referencing itself (forbidden by react-hooks/immutability).
+  const connectRef = useRef<(() => void) | null>(null);
 
   // Track typing start times and pending timeouts for minimum typing duration (500ms)
   const typingStartTimesRef = useRef<Map<string, number>>(new Map());
@@ -57,9 +60,13 @@ export function useWebSocketEvents({
   const addEventLog = useGameStore.getState().addEventLog;
   const enqueueBubble = useGameStore.getState().enqueueBubble;
 
-  // Track the current session ID for message validation
+  // Track the current session ID for message validation. Updated in an effect
+  // (not during render) — every consumer is an async WS callback that fires
+  // after commit, so they always read the committed sessionId.
   const currentSessionIdRef = useRef(sessionId);
-  currentSessionIdRef.current = sessionId;
+  useEffect(() => {
+    currentSessionIdRef.current = sessionId;
+  }, [sessionId]);
 
   // Track whether initial queue sync has been done for this session
   // (prevents backend queue state from overwriting frontend's animated queue)
@@ -423,15 +430,19 @@ export function useWebSocketEvents({
             );
             break;
 
-          case "error":
-            useAttentionStore.getState().processEvent({
-              type: "error",
-              agentId: null,
-              agentName: null,
-              taskDescription: null,
-              errorType: null,
-              message: message.message ?? null,
-            });
+          default:
+            // Mensagens ops.* (deploy: ops.step/ops.log/ops.result) são empurradas
+            // pelo OpsRunner via broadcast_all e chegam neste mesmo WS de sessão.
+            // Re-emite como CustomEvent para o useOpsStream consumir (mesmo padrão
+            // do session-deleted) — sem abrir um socket novo.
+            if (
+              typeof message.type === "string" &&
+              message.type.startsWith("ops.")
+            ) {
+              window.dispatchEvent(
+                new CustomEvent("ops-ws-message", { detail: message }),
+              );
+            }
             break;
         }
       } catch (error) {
@@ -473,7 +484,6 @@ export function useWebSocketEvents({
         return;
       }
 
-      retryCountRef.current = 0;
       setConnected(true);
       setSessionId(sessionId);
 
@@ -491,11 +501,12 @@ export function useWebSocketEvents({
       handleMessage(event);
     };
 
-    ws.onerror = () => {
+    ws.onerror = (error) => {
+      // Check if this connection is still current
       if (connectionIdRef.current !== thisConnectionId) {
         return;
       }
-      console.warn("[WS] Connection error — will retry");
+      console.error("[WS] Error:", error);
     };
 
     ws.onclose = (event) => {
@@ -507,21 +518,23 @@ export function useWebSocketEvents({
       void event; // Acknowledge parameter
       setConnected(false);
 
+      // Attempt reconnection after 2 seconds if still enabled and same session
       if (enabled && sessionId === currentSessionIdRef.current) {
-        const delay = Math.min(
-          1000 * Math.pow(2, retryCountRef.current),
-          30000,
-        );
-        retryCountRef.current++;
         reconnectTimeoutRef.current = setTimeout(() => {
           reconnectTimeoutRef.current = null;
+          // Double-check we're still on the same session before reconnecting
           if (sessionId === currentSessionIdRef.current) {
-            connect();
+            connectRef.current?.();
           }
-        }, delay);
+        }, 2000);
       }
     };
   }, [sessionId, enabled, handleMessage, setConnected, setSessionId]);
+
+  // Keep the reconnect timer pointed at the latest connect implementation.
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   // Effect to manage WebSocket connection
   useEffect(() => {
@@ -537,11 +550,6 @@ export function useWebSocketEvents({
 
     connect();
 
-    // Capture refs into locals at effect-run time so the cleanup uses stable
-    // values (per react-hooks/exhaustive-deps guidance).
-    const timeouts = typingTimeoutsRef.current;
-    const startTimes = typingStartTimesRef.current;
-
     return () => {
       // Clean up on unmount
       if (wsRef.current) {
@@ -552,9 +560,6 @@ export function useWebSocketEvents({
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
-      timeouts.forEach((t) => clearTimeout(t));
-      timeouts.clear();
-      startTimes.clear();
     };
   }, [sessionId, enabled, connect]);
 }

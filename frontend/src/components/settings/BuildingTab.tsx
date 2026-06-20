@@ -3,8 +3,9 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import { apiFetch } from "@/utils/api";
 import type { FloorConfig, RoomConfig } from "@/types/navigation";
+
+const API_URL = "http://localhost:8000/api/v1/preferences/building_config";
 
 // ============================================================================
 // ICON PICKER
@@ -107,6 +108,16 @@ function floorConfigToFormData(floor: FloorConfig): FloorFormData {
   };
 }
 
+function configToFormState(config: {
+  buildingName: string;
+  floors: FloorConfig[];
+}): { buildingName: string; floors: FloorFormData[] } {
+  return {
+    buildingName: config.buildingName,
+    floors: config.floors.map(floorConfigToFormData),
+  };
+}
+
 function formDataToFloorConfig(data: FloorFormData): {
   id: string;
   name: string;
@@ -147,26 +158,31 @@ export function BuildingTab({
   );
   const { t } = useTranslation();
 
-  const [buildingName, setBuildingName] = useState("");
-  const [floors, setFloors] = useState<FloorFormData[]>([]);
+  const [buildingName, setBuildingName] = useState(
+    () => buildingConfig?.buildingName ?? "",
+  );
+  const [floors, setFloors] = useState<FloorFormData[]>(() =>
+    buildingConfig ? buildingConfig.floors.map(floorConfigToFormData) : [],
+  );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [initialData, setInitialData] = useState<{
     buildingName: string;
     floors: FloorFormData[];
-  } | null>(null);
+  } | null>(() => (buildingConfig ? configToFormState(buildingConfig) : null));
 
-  // Initialize form from store config.
-  useEffect(() => {
-    if (buildingConfig) {
-      const name = buildingConfig.buildingName;
-      const fl = buildingConfig.floors.map(floorConfigToFormData);
-      setBuildingName(name);
-      setFloors(fl);
-      setInitialData({ buildingName: name, floors: fl });
-    }
-  }, [buildingConfig]);
+  // Re-seed the form whenever the store's building config changes (e.g. after a
+  // save). Done during render via the "adjust state on dependency change"
+  // pattern instead of an effect, to avoid a cascading render. The initial seed
+  // is handled by the useState initializers above.
+  const [prevConfig, setPrevConfig] = useState(buildingConfig);
+  if (buildingConfig && buildingConfig !== prevConfig) {
+    setPrevConfig(buildingConfig);
+    const seeded = configToFormState(buildingConfig);
+    setBuildingName(seeded.buildingName);
+    setFloors(seeded.floors);
+    setInitialData(seeded);
+  }
 
   // Detect dirty state
   useEffect(() => {
@@ -219,7 +235,6 @@ export function BuildingTab({
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
-    setSaveError(null);
 
     const config = {
       building_name: buildingName || "Building",
@@ -227,13 +242,14 @@ export function BuildingTab({
     };
 
     try {
-      const res = await apiFetch("/api/v1/preferences/building_config", {
+      const res = await fetch(API_URL, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value: JSON.stringify(config) }),
       });
 
       if (res.ok) {
+        // Update local navigation store (no view switch)
         updateBuildingConfig({
           buildingName: config.building_name,
           floors: config.floors,
@@ -241,16 +257,9 @@ export function BuildingTab({
         setInitialData({ buildingName: config.building_name, floors });
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
-      } else {
-        setSaveError(
-          t("settings.building.saveFailed", {
-            status: res.status,
-            statusText: res.statusText,
-          }),
-        );
       }
-    } catch {
-      setSaveError(t("settings.building.saveUnreachable"));
+    } catch (err) {
+      console.warn("[BuildingTab] Failed to save config:", err);
     } finally {
       setSaving(false);
     }
@@ -391,12 +400,7 @@ export function BuildingTab({
       </div>
 
       {/* Save button */}
-      <div className="pt-4 border-t border-slate-800 space-y-2">
-        {saveError && (
-          <p className="text-xs font-mono text-rose-400 text-center">
-            {saveError}
-          </p>
-        )}
+      <div className="pt-4 border-t border-slate-800">
         <button
           type="button"
           onClick={handleSave}

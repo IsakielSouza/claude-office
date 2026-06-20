@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from enum import Enum, auto
 from typing import Any, cast
 
+from app.core.colors import color_for_id
 from app.core.path_utils import compress_path, compress_paths_in_text, truncate_long_words
 from app.core.quotes import get_random_job_completion_quote
 from app.core.summary_service import get_summary_service
@@ -880,17 +881,10 @@ class StateMachine:
         """
         agent_id = data.agent_id or "unknown"
         count = len(self.agents) + 1
-        colors = [
-            "#3B82F6",
-            "#22C55E",
-            "#A855F7",
-            "#F97316",
-            "#EC4899",
-            "#06B6D4",
-            "#EAB308",
-            "#EF4444",
-        ]
-        color = colors[(count - 1) % len(colors)]
+        # Color derived from a stable hash of the agent id (not the sequential
+        # counter) so distinct agents never collide on the same color and the
+        # color stays the same across reconnects/restarts.
+        color = color_for_id(agent_id)
 
         # Generate short name from description using fallback
         name_source = data.agent_name or data.task_description or ""

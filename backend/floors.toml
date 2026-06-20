@@ -1,29 +1,36 @@
-building_name = "Tesseron"
+building_name = "HMTrack"
 
 [[floors]]
-name = "Herramientas"
+name = "Coordenação"
+floor_number = 5
+accent = "#6366f1"
+icon = "🧠"
+repos = ["hmtrack-documentacao"]
+
+[[floors]]
+name = "Backend"
 floor_number = 4
-accent = "#f59e0b"
-icon = "🔧"
-repos = ["panoptica", "prometeo-arius"]
+accent = "#0ea5e9"
+icon = "⚙️"
+repos = ["hmtrack-api-py", "hmtrack-alert-system"]
 
 [[floors]]
-name = "Recepthor"
+name = "Trackers"
 floor_number = 3
-accent = "#2563eb"
-icon = "⚖️"
-repos = ["recepthor-api", "recepthor-hub", "recepthor-scraper", "recepthor-web", "recepthor-serverless"]
+accent = "#f59e0b"
+icon = "📡"
+repos = ["hmtrack-trackers"]
 
 [[floors]]
-name = "Lexio"
+name = "Frontend"
 floor_number = 2
 accent = "#7c3aed"
-icon = "📚"
-repos = ["lexio"]
+icon = "🖥️"
+repos = ["hmtrack-front"]
 
 [[floors]]
-name = "entreperros"
+name = "Mobile"
 floor_number = 1
 accent = "#059669"
-icon = "🐕"
-repos = ["entreperros"]
+icon = "📱"
+repos = ["HMTrackApp"]

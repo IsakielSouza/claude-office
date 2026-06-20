@@ -4,7 +4,11 @@ requires-python = ">=3.13"
 
 [[package]]
 name = "claude-office-hooks"
+<<<<<<< HEAD
 version = "0.21.0"
+=======
+version = "0.16.0"
+>>>>>>> feat/894-servidores-polish
 source = { editable = "." }
 dependencies = [
     { name = "defusedxml" },

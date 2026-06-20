@@ -8,7 +8,6 @@ import {
   usePreferencesStore,
   selectAutoFollowNewSessions,
 } from "@/stores/preferencesStore";
-import { apiFetch } from "@/utils/api";
 
 // ============================================================================
 // TYPES
@@ -49,7 +48,7 @@ interface UseSessionsResult {
 export function useSessions(
   showStatus: (text: string, type?: "info" | "error" | "success") => void,
 ): UseSessionsResult {
-  const [sessionId, setSessionId] = useState("");
+  const [sessionId, setSessionId] = useState("sim_session_123");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
 
@@ -67,7 +66,7 @@ export function useSessions(
   const fetchSessions = useCallback(async (): Promise<Session[] | null> => {
     setSessionsLoading(true);
     try {
-      const res = await apiFetch("/api/v1/sessions");
+      const res = await fetch("http://localhost:8000/api/v1/sessions");
       if (res.ok) {
         const data = (await res.json()) as Session[];
         setSessions(data);
@@ -81,8 +80,11 @@ export function useSessions(
     return null;
   }, []);
 
-  // Fetch sessions on mount and periodically.
+  // Fetch sessions on mount and periodically. The synchronous setState is the
+  // loading flag inside fetchSessions — a legitimate data-fetching effect, not
+  // a render-derived cascade.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount; loading flag is intentional
     fetchSessions();
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
@@ -128,7 +130,11 @@ export function useSessions(
   // Auto-select most active session on initial mount only
   useEffect(() => {
     // Only auto-select once on initial load, not when user manually selects sim session
-    if (!hasAutoSelected.current && sessions.length > 0 && sessionId === "") {
+    if (
+      !hasAutoSelected.current &&
+      sessions.length > 0 &&
+      sessionId === "sim_session_123"
+    ) {
       hasAutoSelected.current = true;
       // Pick the active session with the most events — this is always the long-running
       // main session, not short-lived child sessions which have few events.
@@ -139,6 +145,9 @@ export function useSessions(
         candidates[0],
       );
       if (bestSession) {
+        // Auto-select responds to async-fetched sessions and also fires a toast
+        // (showStatus), so it must stay in the effect — not derivable in render.
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot auto-select on async data + toast side-effect
         setSessionId(bestSession.id);
         showStatus(
           t("status.connectedTo", {

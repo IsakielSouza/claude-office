@@ -8,6 +8,7 @@ Outputs ../frontend/src/types/generated.ts via json-schema-to-typescript.
 """
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -30,6 +31,14 @@ from app.models.sessions import (  # noqa: E402  # type: ignore[import]
     NewsItem,
     Session,
     WhiteboardData,
+)
+from app.models.building import (  # noqa: E402  # type: ignore[import]
+    AgentLive,
+    BuildingState,
+    BuildingTotals,
+    FloorLive,
+    LobbyLive,
+    SessionLive,
 )
 
 # All Pydantic BaseModel subclasses to generate types for
@@ -55,8 +64,17 @@ MODELS = [
     ChangedFile,
     Commit,
     GitStatus,
+<<<<<<< HEAD
     OverviewEntry,
     OverviewState,
+=======
+    AgentLive,
+    SessionLive,
+    FloorLive,
+    LobbyLive,
+    BuildingTotals,
+    BuildingState,
+>>>>>>> feat/894-servidores-polish
 ]
 
 # Generate combined JSON schema with camelCase field names (by_alias=True)
@@ -72,10 +90,13 @@ schema_path.write_text(json.dumps(full_schema, indent=2), encoding="utf-8")
 
 # Convert to TypeScript
 output_path = Path(__file__).parent.parent / "frontend" / "src" / "types" / "generated.ts"
+
+# Prefer bunx, fall back to npx when bun is not installed.
+_runner = "bunx" if shutil.which("bunx") else "npx"
 try:
     result = subprocess.run(
         [
-            "bunx",
+            _runner,
             "json2ts",
             "--input",
             str(schema_path),
