@@ -32,16 +32,25 @@ echo ""
 
 # Build multi-stage Docker image
 echo "🔨 Building Docker image..."
-docker build \
+if ! docker build \
   --tag "$FRONTEND_IMAGE" \
   --tag "$BACKEND_IMAGE" \
-  --build-arg DESTINATION="$DESTINATION" \
-  .
+  .; then
+  echo "❌ Docker build failed" >&2
+  exit 1
+fi
 
 # Push to GHCR (requires: echo $GITHUB_TOKEN | docker login -u USERNAME --password-stdin ghcr.io)
 echo "📤 Pushing to GHCR..."
-docker push "$FRONTEND_IMAGE"
-docker push "$BACKEND_IMAGE"
+if ! docker push "$FRONTEND_IMAGE"; then
+  echo "❌ Failed to push frontend image: $FRONTEND_IMAGE" >&2
+  exit 1
+fi
+
+if ! docker push "$BACKEND_IMAGE"; then
+  echo "❌ Failed to push backend image: $BACKEND_IMAGE" >&2
+  exit 1
+fi
 
 echo ""
 echo "✅ Done!"

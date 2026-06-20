@@ -93,6 +93,17 @@ ghcr.io/isakielsouza/claude-office-backend:
 
 Each tag is immutable — if alocalizai redeploys the same commit, it pulls the cached image.
 
+### ⚠️ Important: No `:latest` tag for multi-client deployments
+
+**Do NOT use `:latest` for any client in production.** While the tag may exist in GHCR as a convenience for development, production deployments **MUST** use explicit per-destination tags (e.g., `alocalizai-a1b2c3d`).
+
+Using `:latest` breaks isolation:
+- Both clients could pull the same `:latest` version
+- Defeats independent version control
+- Makes rollbacks unreliable
+
+**Enforced by `docker-compose.<destination>.yml`:** These files require the `CLAUDE_OFFICE_IMAGE` environment variable to be set explicitly. Deployment will fail if not provided, preventing accidental `:latest` usage.
+
 ## Benefits Summary
 
 | Scenario | Shared (`:latest`) | Per-Destination |

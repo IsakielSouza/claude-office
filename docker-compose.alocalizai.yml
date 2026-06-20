@@ -9,7 +9,9 @@ services:
     # Image tag specific to alocalizai destination
     # Format: ghcr.io/isakielsouza/claude-office-backend:alocalizai-<commit-sha>
     # This isolates alocalizai's deployment from other clients
-    image: "${CLAUDE_OFFICE_IMAGE:-ghcr.io/isakielsouza/claude-office-backend:alocalizai-latest}"
+    # REQUIRED: Set CLAUDE_OFFICE_IMAGE env var to ensure per-destination versioning
+    # Example: export CLAUDE_OFFICE_IMAGE=ghcr.io/isakielsouza/claude-office-backend:alocalizai-a1b2c3d
+    image: "${CLAUDE_OFFICE_IMAGE}"
 
     container_name: claude-office-alocalizai
     ports:
