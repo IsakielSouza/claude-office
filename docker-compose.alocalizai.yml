@@ -1,0 +1,52 @@
+# docker-compose.alocalizai.yml
+# Deployment configuration for alocalizai destination
+# Per-destination tagging strategy (#896): each client has isolated images
+
+version: '3.8'
+
+services:
+  claude-office:
+    # Image tag specific to alocalizai destination
+    # Format: ghcr.io/isakielsouza/claude-office-backend:alocalizai-<commit-sha>
+    # This isolates alocalizai's deployment from other clients
+    # REQUIRED: Set CLAUDE_OFFICE_IMAGE env var to ensure per-destination versioning
+    # Example: export CLAUDE_OFFICE_IMAGE=ghcr.io/isakielsouza/claude-office-backend:alocalizai-a1b2c3d
+    image: "${CLAUDE_OFFICE_IMAGE}"
+
+    container_name: claude-office-alocalizai
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - claude-office-alocalizai-db:/app/data
+
+    environment:
+      # Destination-specific configuration
+      DESTINATION: "alocalizai"
+      DATABASE_URL: "sqlite+aiosqlite:////app/data/visualizer.db"
+      CLAUDE_PATH_HOST: ""
+      CLAUDE_PATH_CONTAINER: "/claude-data"
+      SERVE_STATIC: "1"
+      # Optional: Claude API token for summaries
+      CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
+      SUMMARY_ENABLED: "${SUMMARY_ENABLED:-true}"
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    networks:
+      - alocalizai-net
+
+volumes:
+  claude-office-alocalizai-db:
+    name: claude-office-alocalizai-db
+
+networks:
+  alocalizai-net:
+    name: alocalizai-net
