@@ -9,7 +9,8 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const response = await fetch('/api/tasks');
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const response = await fetch(`${backendUrl}/api/tasks`);
         if (response.ok) {
           const data = await response.json();
           setTasks(data);
