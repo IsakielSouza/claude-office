@@ -70,7 +70,11 @@ wheels = [
 
 [[package]]
 name = "claude-office"
+<<<<<<< HEAD
 version = "0.21.0"
+=======
+version = "0.16.0"
+>>>>>>> feat/894-servidores-polish
 source = { editable = "." }
 dependencies = [
     { name = "requests" },

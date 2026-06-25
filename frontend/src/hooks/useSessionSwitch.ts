@@ -3,7 +3,6 @@
 import { agentMachineService } from "@/machines/agentMachineService";
 import { useGameStore } from "@/stores/gameStore";
 import { useTranslation } from "@/hooks/useTranslation";
-import { apiFetch } from "@/utils/api";
 import type { Session } from "@/hooks/useSessions";
 
 // ============================================================================
@@ -20,7 +19,6 @@ interface UseSessionSwitchOptions {
 interface UseSessionSwitchResult {
   handleSessionSelect: (id: string) => Promise<void>;
   handleDeleteSession: (session: Session) => Promise<void>;
-  handleClearDB: () => Promise<void>;
   handleSimulate: () => Promise<void>;
   handleReset: () => void;
   handleRenameSession: (sessionId: string, newName: string) => Promise<void>;
@@ -31,7 +29,7 @@ interface UseSessionSwitchResult {
 // ============================================================================
 
 /**
- * Provides action handlers for session switching, deletion, database clearing,
+ * Provides action handlers for session switching, deletion,
  * simulation triggering, and store resetting. All side-effects are isolated
  * here so page.tsx stays declarative.
  */
@@ -67,7 +65,7 @@ export function useSessionSwitch({
         t("status.deletingSession", { sessionId: id.slice(0, 8) }),
         "info",
       );
-      const res = await apiFetch(`/api/v1/sessions/${id}`, {
+      const res = await fetch(`http://localhost:8000/api/v1/sessions/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -88,33 +86,13 @@ export function useSessionSwitch({
     }
   };
 
-  const handleClearDB = async (): Promise<void> => {
-    try {
-      showStatus(t("status.clearingDatabase"), "info");
-      const res = await apiFetch("/api/v1/sessions", {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        agentMachineService.reset();
-        useGameStore.getState().resetForSessionSwitch();
-        setSessionId("sim_session_123");
-        await fetchSessions();
-        showStatus(t("status.databaseCleared"), "success");
-      } else {
-        showStatus(t("status.failedClearDatabase"), "error");
-      }
-    } catch (e) {
-      console.error(e);
-      showStatus(t("status.errorConnecting"), "error");
-    }
-  };
-
   const handleSimulate = async (): Promise<void> => {
     try {
       showStatus(t("status.triggeringSimulation"), "info");
-      const res = await apiFetch("/api/v1/sessions/simulate", {
-        method: "POST",
-      });
+      const res = await fetch(
+        "http://localhost:8000/api/v1/sessions/simulate",
+        { method: "POST" },
+      );
       if (res.ok) {
         showStatus(t("status.simulationStarted"), "success");
       } else {
@@ -140,11 +118,14 @@ export function useSessionSwitch({
     if (!trimmed) return;
 
     try {
-      const res = await apiFetch(`/api/v1/sessions/${sessionId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ display_name: trimmed }),
-      });
+      const res = await fetch(
+        `http://localhost:8000/api/v1/sessions/${sessionId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ display_name: trimmed }),
+        },
+      );
       if (res.ok) {
         await fetchSessions();
         showStatus(t("status.sessionRenamed"), "success");
@@ -160,7 +141,6 @@ export function useSessionSwitch({
   return {
     handleSessionSelect,
     handleDeleteSession,
-    handleClearDB,
     handleSimulate,
     handleReset,
     handleRenameSession,

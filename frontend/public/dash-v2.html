@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Neon Agents Dashboard — HMTrack</title>
+<style>
+  :root {
+    --bg: #07060d;
+    --bg-2: #0d0a18;
+    --panel: rgba(20, 14, 38, 0.6);
+    --panel-border: rgba(168, 85, 247, 0.25);
+    --text: #ece9f5;
+    --muted: #9a93b3;
+    --neon-purple: #a855f7;
+    --neon-pink: #ec4899;
+    --neon-blue: #38bdf8;
+    --neon-green: #34d399;
+    --neon-amber: #fbbf24;
+    --grid-line: rgba(168, 85, 247, 0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(168,85,247,0.18), transparent 60%),
+      radial-gradient(900px 500px at 90% 0%, rgba(236,72,153,0.12), transparent 55%),
+      linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 40px 40px,
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 40px 40px,
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 28px 36px 60px;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 26px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .brand .logo {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--neon-purple), var(--neon-pink));
+    display: grid; place-items: center; font-size: 24px;
+    box-shadow: 0 0 24px rgba(168,85,247,0.6);
+  }
+  .brand h1 {
+    font-size: 22px; font-weight: 700;
+    background: linear-gradient(90deg, #c084fc, #f0abfc);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .brand p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  .header-actions { display: flex; align-items: center; gap: 14px; }
+  .btn {
+    border: none; cursor: pointer; border-radius: 12px;
+    padding: 11px 20px; font-size: 14px; font-weight: 600; color: #fff;
+    background: linear-gradient(135deg, var(--neon-purple), var(--neon-pink));
+    box-shadow: 0 0 20px rgba(168,85,247,0.45);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 0 28px rgba(168,85,247,0.7); }
+
+  /* ---------- Stat cards ---------- */
+  .stats {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: 16px; margin-bottom: 28px;
+  }
+  .stat {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 16px; padding: 18px 20px;
+    backdrop-filter: blur(8px);
+    position: relative; overflow: hidden;
+  }
+  .stat::after {
+    content: ""; position: absolute; inset: 0;
+    box-shadow: inset 0 0 30px rgba(168,85,247,0.08);
+    border-radius: 16px; pointer-events: none;
+  }
+  .stat .label { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .stat .value { font-size: 34px; font-weight: 700; }
+  .stat.purple { box-shadow: 0 0 22px rgba(168,85,247,0.25); }
+  .stat.purple .value { color: var(--neon-purple); }
+  .stat.blue .value { color: var(--neon-blue); }
+  .stat.pink .value { color: var(--neon-pink); }
+  .stat.green .value { color: var(--neon-green); }
+  .stat.amber .value { color: var(--neon-amber); }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 24px; flex-wrap: wrap;
+  }
+  .search {
+    flex: 1; min-width: 220px; max-width: 360px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--panel-border);
+    border-radius: 12px; padding: 11px 16px; color: var(--text); font-size: 14px;
+  }
+  .search::placeholder { color: var(--muted); }
+  .filter-group { display: flex; gap: 8px; align-items: center; }
+  .filter-group .lbl { color: var(--muted); font-size: 13px; margin-right: 4px; }
+  .chip {
+    border: 1px solid var(--panel-border); background: rgba(255,255,255,0.03);
+    color: var(--muted); border-radius: 10px; padding: 8px 14px;
+    font-size: 13px; cursor: pointer; transition: all .15s; font-weight: 600;
+  }
+  .chip:hover { color: var(--text); border-color: var(--neon-purple); }
+  .chip.active {
+    color: #fff; background: rgba(168,85,247,0.15);
+    border-color: var(--neon-purple); box-shadow: 0 0 14px rgba(168,85,247,0.4);
+  }
+
+  /* ---------- Projects bar ---------- */
+  .section-title {
+    font-size: 15px; font-weight: 700; color: var(--text);
+    margin: 6px 0 14px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-title .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .projects {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px; margin-bottom: 30px;
+  }
+  .project {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 14px; padding: 14px 16px; backdrop-filter: blur(6px);
+    border-left: 3px solid var(--neon-blue);
+  }
+  .project h3 { font-size: 14px; margin-bottom: 6px; }
+  .project .meta { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .progress {
+    height: 6px; border-radius: 6px; background: rgba(255,255,255,0.06); overflow: hidden;
+  }
+  .progress > span {
+    display: block; height: 100%;
+    background: linear-gradient(90deg, var(--neon-purple), var(--neon-pink));
+  }
+  .project .agents-mini { display: flex; gap: -8px; margin-top: 12px; }
+  .avatar {
+    width: 26px; height: 26px; border-radius: 50%; margin-left: -8px;
+    display: grid; place-items: center; font-size: 11px; font-weight: 700;
+    color: #fff; border: 2px solid var(--bg-2);
+  }
+  .avatar:first-child { margin-left: 0; }
+
+  /* ---------- Agents board (kanban-like) ---------- */
+  .board {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 18px;
+  }
+  .agent-col {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 16px; backdrop-filter: blur(8px); overflow: hidden;
+  }
+  .agent-head {
+    padding: 16px 18px; display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .agent-head .av {
+    width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+    font-size: 16px; font-weight: 700; color: #fff;
+  }
+  .agent-head .info { flex: 1; }
+  .agent-head .info .name { font-size: 14px; font-weight: 700; }
+  .agent-head .info .role { font-size: 12px; color: var(--muted); }
+  .agent-head .count {
+    font-size: 13px; font-weight: 700; color: var(--muted);
+    background: rgba(255,255,255,0.05); border-radius: 8px; padding: 4px 10px;
+  }
+  .status-pill {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 6px; letter-spacing: .5px;
+  }
+  .status-pill.busy { color: var(--neon-amber); background: rgba(251,191,36,0.12); }
+  .status-pill.idle { color: var(--neon-green); background: rgba(52,211,153,0.12); }
+  .status-pill.blocked { color: var(--neon-pink); background: rgba(236,72,153,0.12); }
+
+  .queue { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .task {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px; padding: 13px 14px; position: relative;
+    border-left: 3px solid var(--neon-purple); transition: all .15s;
+  }
+  .task:hover { border-color: var(--neon-purple); background: rgba(168,85,247,0.06); }
+  .task.s-todo { border-left-color: var(--neon-pink); }
+  .task.s-doing { border-left-color: var(--neon-blue); }
+  .task.s-done { border-left-color: var(--neon-green); opacity: .7; }
+  .task .t-title { font-size: 13.5px; font-weight: 600; margin-bottom: 8px; }
+  .task.s-done .t-title { text-decoration: line-through; color: var(--muted); }
+  .task .t-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tag {
+    font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px;
+  }
+  .tag.proj { color: var(--neon-blue); background: rgba(56,189,248,0.12); }
+  .tag.high { color: var(--neon-pink); background: rgba(236,72,153,0.14); }
+  .tag.med { color: var(--neon-amber); background: rgba(251,191,36,0.14); }
+  .tag.low { color: var(--neon-green); background: rgba(52,211,153,0.14); }
+  .tag.status { color: var(--muted); background: rgba(255,255,255,0.06); }
+
+  /* ---------- Summary status bar ---------- */
+  .summary {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 16px; padding: 16px 20px; margin-bottom: 28px;
+    backdrop-filter: blur(8px);
+  }
+  .summary .line {
+    font-size: 14px; color: var(--muted); margin-bottom: 14px;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+  .summary .line b { color: var(--text); font-weight: 700; }
+  .summary .line .err { color: var(--neon-pink); font-weight: 700; }
+  .summary .line .you { color: var(--neon-amber); font-weight: 700; }
+  .summary .line .run { color: var(--neon-blue); font-weight: 700; }
+  .summary .line .queue-c { color: var(--muted); font-weight: 700; }
+  .summary .pills { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    border-radius: 10px; padding: 8px 14px; font-size: 13px; font-weight: 600;
+    border: 1px solid var(--panel-border); background: rgba(255,255,255,0.03);
+    cursor: pointer; transition: all .15s;
+  }
+  .pill:hover { transform: translateY(-1px); }
+  .pill.you { color: var(--neon-amber); border-color: rgba(251,191,36,0.4); }
+  .pill.run { color: var(--neon-blue); border-color: rgba(56,189,248,0.4); }
+  .pill.queue { color: var(--muted); }
+  .pill.err { color: var(--neon-pink); border-color: rgba(236,72,153,0.4); background: rgba(236,72,153,0.08); }
+
+  /* ---------- Period chart (Fechadas por período) ---------- */
+  .chart-card {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 16px; padding: 18px 20px; margin-bottom: 30px;
+    backdrop-filter: blur(8px);
+  }
+  .chart-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 18px; flex-wrap: wrap; gap: 12px;
+  }
+  .chart-head .ttl {
+    font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .seg { display: inline-flex; background: rgba(255,255,255,0.04);
+    border: 1px solid var(--panel-border); border-radius: 10px; padding: 3px; }
+  .seg button {
+    border: none; background: transparent; color: var(--muted);
+    padding: 6px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+    border-radius: 8px; transition: all .15s;
+  }
+  .seg button.active {
+    color: #fff; background: linear-gradient(135deg, var(--neon-blue), #2563eb);
+    box-shadow: 0 0 14px rgba(56,189,248,0.4);
+  }
+  .refresh {
+    border: 1px solid rgba(56,189,248,0.4); background: rgba(56,189,248,0.08);
+    color: var(--neon-blue); border-radius: 10px; padding: 7px 16px;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s;
+  }
+  .refresh:hover { background: rgba(56,189,248,0.16); }
+  .bar-row {
+    display: grid; grid-template-columns: 90px 1fr 44px;
+    align-items: center; gap: 14px; padding: 5px 0;
+  }
+  .bar-row .date { font-size: 12.5px; color: var(--muted); }
+  .bar-track { height: 22px; background: rgba(255,255,255,0.03);
+    border-radius: 5px; overflow: hidden; }
+  .bar-fill {
+    height: 100%; border-radius: 5px;
+    background: linear-gradient(90deg, #2563eb, #38bdf8);
+    box-shadow: 0 0 12px rgba(56,189,248,0.35);
+  }
+  .bar-row .num { font-size: 13px; font-weight: 700; color: var(--text); text-align: right; }
+
+  footer { margin-top: 40px; text-align: center; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo">🤖</div>
+    <div>
+      <h1>Neon Agents Dashboard</h1>
+      <p>Gestão de agentes, filas e tasks — ecossistema HMTrack</p>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="btn">+ Nova Task</button>
+    <button class="btn" style="background:linear-gradient(135deg,#38bdf8,#a855f7)">+ Agente</button>
+  </div>
+</header>
+
+<!-- Stats -->
+<section class="stats">
+  <div class="stat purple"><div class="label">Agentes ativos</div><div class="value">9</div></div>
+  <div class="stat blue"><div class="label">Tasks em progresso</div><div class="value">5</div></div>
+  <div class="stat pink"><div class="label">Na fila (To-Do)</div><div class="value">7</div></div>
+  <div class="stat green"><div class="label">Concluídas hoje</div><div class="value">11</div></div>
+  <div class="stat amber"><div class="label">Bloqueadas</div><div class="value">2</div></div>
+</section>
+
+<!-- Summary status bar -->
+<section class="summary">
+  <div class="line">
+    <b>41 abertas</b> = <span class="err">2 erros</span> ·
+    <span class="you">12 precisa de você</span> ·
+    <span class="run">0 em andamento</span> ·
+    <span class="queue-c">27 na fila</span>
+  </div>
+  <div class="pills">
+    <span class="pill you">⚠ Precisa de você (14)</span>
+    <span class="pill run">⚙ Em andamento (0)</span>
+    <span class="pill queue">🧱 Fila (27)</span>
+    <span class="pill err">✕ Erros — 2</span>
+  </div>
+</section>
+
+<!-- Toolbar -->
+<section class="toolbar">
+  <input class="search" placeholder="🔍  Buscar agente ou task..." />
+  <div class="filter-group">
+    <span class="lbl">Status:</span>
+    <span class="chip active">Todos</span>
+    <span class="chip">To-Do</span>
+    <span class="chip">Em progresso</span>
+    <span class="chip">Concluído</span>
+    <span class="chip">Bloqueado</span>
+  </div>
+  <div class="filter-group">
+    <span class="lbl">Projeto:</span>
+    <span class="chip active">Todos</span>
+    <span class="chip">API</span>
+    <span class="chip">Front</span>
+    <span class="chip">Trackers</span>
+    <span class="chip">Mobile</span>
+  </div>
+</section>
+
+<!-- Projects -->
+<div class="section-title"><span class="dot" style="background:var(--neon-blue);box-shadow:0 0 8px var(--neon-blue)"></span> Projetos</div>
+<section class="projects">
+  <div class="project" style="border-left-color:#38bdf8">
+    <h3>hmtrack-api-py</h3>
+    <div class="meta">FastAPI · porta 3080 · 3 tasks ativas</div>
+    <div class="progress"><span style="width:64%"></span></div>
+    <div class="agents-mini">
+      <div class="avatar" style="background:#38bdf8">API</div>
+      <div class="avatar" style="background:#a855f7">QA</div>
+      <div class="avatar" style="background:#fbbf24">DV</div>
+    </div>
+  </div>
+  <div class="project" style="border-left-color:#a855f7">
+    <h3>hmtrack-front</h3>
+    <div class="meta">Angular · porta 4200 · 2 tasks ativas</div>
+    <div class="progress"><span style="width:42%"></span></div>
+    <div class="agents-mini">
+      <div class="avatar" style="background:#a855f7">FE</div>
+      <div class="avatar" style="background:#a855f7">QA</div>
+    </div>
+  </div>
+  <div class="project" style="border-left-color:#34d399">
+    <h3>hmtrack-trackers</h3>
+    <div class="meta">Integração GPS · Suntech/Concox · 1 task</div>
+    <div class="progress"><span style="width:80%"></span></div>
+    <div class="agents-mini">
+      <div class="avatar" style="background:#34d399">TR</div>
+      <div class="avatar" style="background:#ec4899">PR</div>
+    </div>
+  </div>
+  <div class="project" style="border-left-color:#ec4899">
+    <h3>hmtrack-alert-system</h3>
+    <div class="meta">Workers · SQS · 2 tasks ativas</div>
+    <div class="progress"><span style="width:55%"></span></div>
+    <div class="agents-mini">
+      <div class="avatar" style="background:#ec4899">AL</div>
+      <div class="avatar" style="background:#fbbf24">DV</div>
+    </div>
+  </div>
+  <div class="project" style="border-left-color:#fbbf24">
+    <h3>HMTrackApp</h3>
+    <div class="meta">Mobile · 1 task ativa</div>
+    <div class="progress"><span style="width:30%"></span></div>
+    <div class="agents-mini">
+      <div class="avatar" style="background:#fbbf24">MB</div>
+    </div>
+  </div>
+</section>
+
+<!-- Period chart -->
+<section class="chart-card">
+  <div class="chart-head">
+    <span class="ttl">Fechadas por período</span>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="seg">
+        <button class="active">Dia</button>
+        <button>Semana</button>
+        <button>Mês</button>
+      </div>
+      <button class="refresh">↻ Atualizar</button>
+    </div>
+  </div>
+  <div class="chart-body">
+    <div class="bar-row"><span class="date">11/06/2026</span><div class="bar-track"><div class="bar-fill" style="width:36%"></div></div><span class="num">21</span></div>
+    <div class="bar-row"><span class="date">10/06/2026</span><div class="bar-track"><div class="bar-fill" style="width:59%"></div></div><span class="num">34</span></div>
+    <div class="bar-row"><span class="date">09/06/2026</span><div class="bar-track"><div class="bar-fill" style="width:22%"></div></div><span class="num">13</span></div>
+    <div class="bar-row"><span class="date">08/06/2026</span><div class="bar-track"><div class="bar-fill" style="width:7%"></div></div><span class="num">4</span></div>
+    <div class="bar-row"><span class="date">07/06/2026</span><div class="bar-track"><div class="bar-fill" style="width:29%"></div></div><span class="num">17</span></div>
+    <div class="bar-row"><span class="date">06/06/2026</span><div class="bar-track"><div class="bar-fill" style="width:4%"></div></div><span class="num">2</span></div>
+    <div class="bar-row"><span class="date">05/06/2026</span><div class="bar-track"><div class="bar-fill" style="width:24%"></div></div><span class="num">14</span></div>
+    <div class="bar-row"><span class="date">04/06/2026</span><div class="bar-track"><div class="bar-fill" style="width:7%"></div></div><span class="num">4</span></div>
+    <div class="bar-row"><span class="date">03/06/2026</span><div class="bar-track"><div class="bar-fill" style="width:79%"></div></div><span class="num">46</span></div>
+    <div class="bar-row"><span class="date">02/06/2026</span><div class="bar-track"><div class="bar-fill" style="width:64%"></div></div><span class="num">37</span></div>
+    <div class="bar-row"><span class="date">31/05/2026</span><div class="bar-track"><div class="bar-fill" style="width:43%"></div></div><span class="num">25</span></div>
+    <div class="bar-row"><span class="date">30/05/2026</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="num">58</span></div>
+  </div>
+</section>
+
+<!-- Agents board -->
+<div class="section-title"><span class="dot" style="background:var(--neon-purple);box-shadow:0 0 8px var(--neon-purple)"></span> Agentes &amp; Filas</div>
+<section class="board">
+
+  <!-- Agent: API -->
+  <div class="agent-col">
+    <div class="agent-head">
+      <div class="av" style="background:linear-gradient(135deg,#38bdf8,#0ea5e9)">API</div>
+      <div class="info">
+        <div class="name">Agent · hmtrack-api-py</div>
+        <div class="role">Especialista · API REST</div>
+      </div>
+      <span class="status-pill busy">Ocupado</span>
+    </div>
+    <div class="queue">
+      <div class="task s-doing">
+        <div class="t-title">Endpoint de notificações pull-based</div>
+        <div class="t-foot"><span class="tag proj">api-py</span><span class="tag high">Alta</span><span class="tag status">Em progresso</span></div>
+      </div>
+      <div class="task s-todo">
+        <div class="t-title">Refatorar health check /health</div>
+        <div class="t-foot"><span class="tag proj">api-py</span><span class="tag med">Média</span><span class="tag status">To-Do</span></div>
+      </div>
+      <div class="task s-todo">
+        <div class="t-title">Validação de payload Suntech UP</div>
+        <div class="t-foot"><span class="tag proj">api-py</span><span class="tag low">Baixa</span><span class="tag status">To-Do</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent: Front -->
+  <div class="agent-col">
+    <div class="agent-head">
+      <div class="av" style="background:linear-gradient(135deg,#a855f7,#7c3aed)">FE</div>
+      <div class="info">
+        <div class="name">Agent · hmtrack-front</div>
+        <div class="role">Especialista · Frontend</div>
+      </div>
+      <span class="status-pill busy">Ocupado</span>
+    </div>
+    <div class="queue">
+      <div class="task s-doing">
+        <div class="t-title">Monitor pull-based (remover WS)</div>
+        <div class="t-foot"><span class="tag proj">front</span><span class="tag high">Alta</span><span class="tag status">Em progresso</span></div>
+      </div>
+      <div class="task s-todo">
+        <div class="t-title">Tela de configuração de máscaras</div>
+        <div class="t-foot"><span class="tag proj">front</span><span class="tag med">Média</span><span class="tag status">To-Do</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent: QA (multi-projeto) -->
+  <div class="agent-col">
+    <div class="agent-head">
+      <div class="av" style="background:linear-gradient(135deg,#34d399,#10b981)">QA</div>
+      <div class="info">
+        <div class="name">Agent · QA-1</div>
+        <div class="role">Coordenação · Gate de qualidade · multi-projeto</div>
+      </div>
+      <span class="status-pill idle">Livre</span>
+    </div>
+    <div class="queue">
+      <div class="task s-done">
+        <div class="t-title">Smoke test do front</div>
+        <div class="t-foot"><span class="tag proj">front</span><span class="tag med">Média</span><span class="tag status">Concluído</span></div>
+      </div>
+      <div class="task s-doing">
+        <div class="t-title">Security-review PR #41</div>
+        <div class="t-foot"><span class="tag proj">api-py</span><span class="tag high">Alta</span><span class="tag status">Em progresso</span></div>
+      </div>
+      <div class="task s-todo">
+        <div class="t-title">Suíte de testes do alert-system</div>
+        <div class="t-foot"><span class="tag proj">alert-sys</span><span class="tag med">Média</span><span class="tag status">To-Do</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent: DevOps (multi-projeto) -->
+  <div class="agent-col">
+    <div class="agent-head">
+      <div class="av" style="background:linear-gradient(135deg,#fbbf24,#f59e0b)">DV</div>
+      <div class="info">
+        <div class="name">Agent · DEVOPS-HMTRACK-1</div>
+        <div class="role">Coordenação · Merge &amp; Deploy · multi-projeto</div>
+      </div>
+      <span class="status-pill blocked">Bloqueado</span>
+    </div>
+    <div class="queue">
+      <div class="task s-doing">
+        <div class="t-title">Auto-deploy CD (push→main)</div>
+        <div class="t-foot"><span class="tag proj">alert-sys</span><span class="tag high">Alta</span><span class="tag status">Em progresso</span></div>
+      </div>
+      <div class="task s-todo">
+        <div class="t-title">Merge PR API (política L1)</div>
+        <div class="t-foot"><span class="tag proj">api-py</span><span class="tag high">Alta</span><span class="tag status">Bloqueado · aguarda QA</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent: Trackers -->
+  <div class="agent-col">
+    <div class="agent-head">
+      <div class="av" style="background:linear-gradient(135deg,#34d399,#059669)">TR</div>
+      <div class="info">
+        <div class="name">Agent · hmtrack-trackers</div>
+        <div class="role">Especialista · Integração GPS</div>
+      </div>
+      <span class="status-pill idle">Livre</span>
+    </div>
+    <div class="queue">
+      <div class="task s-done">
+        <div class="t-title">Parser Concox GT06 — heartbeat</div>
+        <div class="t-foot"><span class="tag proj">trackers</span><span class="tag med">Média</span><span class="tag status">Concluído</span></div>
+      </div>
+      <div class="task s-todo">
+        <div class="t-title">Suporte porta TCP 4185</div>
+        <div class="t-foot"><span class="tag proj">trackers</span><span class="tag low">Baixa</span><span class="tag status">To-Do</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent: Mobile -->
+  <div class="agent-col">
+    <div class="agent-head">
+      <div class="av" style="background:linear-gradient(135deg,#fbbf24,#ec4899)">MB</div>
+      <div class="info">
+        <div class="name">Agent · App HMTrack</div>
+        <div class="role">Especialista · Mobile</div>
+      </div>
+      <span class="status-pill idle">Livre</span>
+    </div>
+    <div class="queue">
+      <div class="task s-todo">
+        <div class="t-title">Push de notificações de alerta</div>
+        <div class="t-foot"><span class="tag proj">mobile</span><span class="tag med">Média</span><span class="tag status">To-Do</span></div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<footer>Esboço / mockup estático · dados de exemplo · estilo neon — HMTrack Agents Dashboard</footer>
+
+</body>
+</html>

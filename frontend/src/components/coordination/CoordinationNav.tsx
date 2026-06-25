@@ -1,0 +1,42 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { NeedYouIndicator } from "./NeedYouIndicator";
+import { PausedAgentsIndicator } from "./PausedAgentsIndicator";
+
+const TABS = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/console", label: "Console" },
+  { href: "/agents", label: "Agentes" },
+  { href: "/agendas", label: "Agendas" },
+  { href: "/tasks", label: "Tasks" },
+  { href: "/servidores", label: "Servidores" },
+  { href: "/agent-runs", label: "Histórico" },
+  { href: "/office", label: "Escritório" },
+  { href: "/ajuda", label: "Ajuda" },
+];
+
+/** Sub-navegação (abas) entre as 3 páginas de coordenação. */
+export function CoordinationNav(): React.ReactNode {
+  const path = usePathname();
+  return (
+    <nav className="flex items-center gap-2 border-b border-slate-800 mb-4">
+      {TABS.map((tab) => (
+        <Link
+          key={tab.href}
+          href={tab.href}
+          className={`px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors ${
+            path === tab.href
+              ? "border-sky-400 text-sky-400"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          {tab.label}
+        </Link>
+      ))}
+      <NeedYouIndicator />
+      <PausedAgentsIndicator />
+    </nav>
+  );
+}

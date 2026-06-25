@@ -47,16 +47,23 @@ export type {
   EventType,
   EventData,
   Event,
-  // Overview (Command Center)
-  OverviewEntry,
-  OverviewState,
 } from "./generated";
 
 // Re-export Commit with the legacy GitCommit alias for backward compatibility
 export type { Commit, Commit as GitCommit } from "./generated";
 
-// Re-export the overview status bucket under a descriptive name
-export type { Bucket as OverviewBucket } from "./generated";
+// ============================================================================
+// BUILDING VIEW TYPES — compact live feed (re-exported from ./generated)
+// ============================================================================
+
+export type {
+  AgentLive,
+  SessionLive,
+  FloorLive,
+  LobbyLive,
+  BuildingTotals,
+  BuildingState,
+} from "./generated";
 
 // ============================================================================
 // FRONTEND-ONLY TYPES — not derived from backend models
@@ -118,7 +125,10 @@ export interface WebSocketMessage {
     | "reload"
     | "git_status"
     | "session_deleted"
-    | "error";
+    // Deploy/ops feed (OpsRunner.broadcast_all) — chega no mesmo WS de sessão.
+    | "ops.step"
+    | "ops.log"
+    | "ops.result";
   timestamp: string;
   state?: import("./generated").GameState;
   event?: {
@@ -131,7 +141,6 @@ export interface WebSocketMessage {
   };
   gitStatus?: import("./generated").GitStatus;
   session_id?: string;
-  message?: string;
 }
 
 // ============================================================================

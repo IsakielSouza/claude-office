@@ -1,10 +1,20 @@
 "use client";
 
-import { Activity, HelpCircle, Settings, Bell, LayoutGrid } from "lucide-react";
+import {
+  Activity,
+  Play,
+  RefreshCw,
+  Bug,
+  ListTodo,
+  HelpCircle,
+  Settings,
+  Map,
+  Bell,
+} from "lucide-react";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useNavigationStore } from "@/stores/navigationStore";
+import { useTourStore } from "@/stores/tourStore";
 import { useAttentionStore, selectUnreadCount } from "@/stores/attentionStore";
-import { HeaderMoreMenu } from "@/components/layout/HeaderMoreMenu";
 
 // ============================================================================
 // TYPES
@@ -14,11 +24,9 @@ interface HeaderControlsProps {
   isConnected: boolean;
   debugMode: boolean;
   aiSummaryEnabled: boolean | null;
-  /** Number of active sessions — gates the Command Center button (>= 2). */
-  activeSessionCount: number;
   onSimulate: () => Promise<void>;
   onReset: () => void;
-  onClearDB: () => void;
+  onTasks: () => void;
   onToggleDebug: () => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
@@ -29,10 +37,8 @@ interface HeaderControlsProps {
 // ============================================================================
 
 /**
- * Desktop-only header controls. Frequently-used entry points (Command Center,
- * Settings, Help, attention queue) stay visible; the rarely-used
- * developer/maintenance actions live in the "⋯" overflow menu, and the tour
- * moved into the Help modal — keeping the header readable.
+ * Desktop-only header controls: action buttons (Simulate, Reset, Tasks,
+ * Debug, Settings, Help) and the connection/AI status display.
  *
  * Hidden on mobile — the MobileDrawer handles those actions instead.
  */
@@ -40,22 +46,62 @@ export function HeaderControls({
   isConnected,
   debugMode,
   aiSummaryEnabled,
-  activeSessionCount,
   onSimulate,
   onReset,
-  onClearDB,
+  onTasks,
   onToggleDebug,
   onOpenSettings,
   onOpenHelp,
 }: HeaderControlsProps): React.ReactNode {
   const { t } = useTranslation();
   const view = useNavigationStore((s) => s.view);
-  const goToCommand = useNavigationStore((s) => s.goToCommand);
+  const buildingConfig = useNavigationStore((s) => s.buildingConfig);
+  const hasSeenTour = useTourStore((s) => s.hasSeenTour);
+  const startTour = useTourStore((s) => s.startTour); // (mode: "single" | "building") => void
   const unreadCount = useAttentionStore(selectUnreadCount);
   const openCommandBar = useAttentionStore((s) => s.openCommandBar);
+  const hasBuildingConfig =
+    buildingConfig !== null && (buildingConfig?.floors.length ?? 0) > 0;
 
   return (
-    <div className="flex gap-3 items-center">
+    <div className="flex gap-4 items-center">
+      <button
+        onClick={onSimulate}
+        data-tour-id="simulate-btn"
+        className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 rounded text-xs font-bold transition-colors"
+      >
+        <Play size={14} fill="currentColor" />
+        {t("header.simulate")}
+      </button>
+
+      <button
+        onClick={onReset}
+        className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 rounded text-xs font-bold transition-colors"
+      >
+        <RefreshCw size={14} />
+        {t("header.reset")}
+      </button>
+
+      <button
+        onClick={onTasks}
+        className="flex items-center gap-2 px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded text-xs font-bold transition-colors"
+      >
+        <ListTodo size={14} />
+        {t("header.tasks")}
+      </button>
+
+      <button
+        onClick={onToggleDebug}
+        className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-bold transition-colors ${
+          debugMode
+            ? "bg-green-500/20 text-green-400 border-green-500/30"
+            : "bg-slate-500/10 text-slate-400 border-slate-500/30 hover:bg-slate-500/20"
+        }`}
+      >
+        <Bug size={14} />
+        {debugMode ? t("header.debugOn") : t("header.debugOff")}
+      </button>
+
       {unreadCount > 0 && (
         <button
           onClick={openCommandBar}
@@ -69,19 +115,18 @@ export function HeaderControls({
         </button>
       )}
 
-      {/* Command Center — cross-terminal overview (>= 2 active sessions) */}
-      {activeSessionCount >= 2 && (
+      {/* Tour button */}
+      {!hasSeenTour && (
         <button
-          onClick={goToCommand}
-          title={t("commandCenter.title")}
-          className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-bold transition-colors ${
-            view === "command"
-              ? "bg-sky-500/20 text-sky-400 border-sky-500/30"
-              : "bg-sky-500/10 text-sky-500 border-sky-500/30 hover:bg-sky-500/20"
-          }`}
+          onClick={() => {
+            const mode =
+              view !== "single" && hasBuildingConfig ? "building" : "single";
+            startTour(mode);
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 border border-orange-500/30 rounded text-xs font-bold transition-colors"
         >
-          <LayoutGrid size={14} />
-          {t("header.commandCenter")}
+          <Map size={14} />
+          {t("header.tour")}
         </button>
       )}
 
@@ -101,15 +146,6 @@ export function HeaderControls({
         <HelpCircle size={14} />
         {t("header.help")}
       </button>
-
-      {/* Rarely-used developer/maintenance actions */}
-      <HeaderMoreMenu
-        debugMode={debugMode}
-        onSimulate={onSimulate}
-        onReset={onReset}
-        onClearDB={onClearDB}
-        onToggleDebug={onToggleDebug}
-      />
 
       {/* Connection and AI status */}
       <div className="flex flex-col items-end border-l border-slate-800 pl-4">
