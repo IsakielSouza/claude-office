@@ -34,11 +34,12 @@ The scripts directory contains testing and development utilities:
 
 ## Available Scripts
 
-| Script | Purpose | Session ID |
-|--------|---------|------------|
-| `simulate_events.py` | Run simulation scenarios | `sim_session_123` (default) |
-| `test_single_agent.py` | Debug pathfinding with one agent | `test_single_agent` |
-| `gen_types.py` | Generate TypeScript from Pydantic models | N/A |
+| Script | Purpose | Mode |
+|--------|---------|------|
+| `simulate_events.py` | Run simulation scenarios | Demo |
+| `test_single_agent.py` | Debug pathfinding with one agent | Debug |
+| `gen_types.py` | Generate TypeScript from Pydantic models | Tooling |
+| `monitor_github_billing.py` | Monitor GitHub Actions billing status | Monitoring |
 
 ## Simulation Scenarios
 
@@ -181,6 +182,71 @@ The `gen_types.py` script generates TypeScript interfaces from backend Pydantic 
 ### When to Run
 
 Run this after modifying backend Pydantic models to keep frontend types in sync.
+
+## GitHub Actions Billing Monitor
+
+The `monitor_github_billing.py` script monitors GitHub Actions billing status to detect if access has been suspended.
+
+### What It Does
+
+1. Queries the GitHub Billing API (`GET /orgs/{org}/billing/actions`)
+2. Reports status as 'active', 'suspended', or 'unknown'
+3. Sends alerts to Slack if billing is not active
+4. Returns exit code 1 if suspended (for CI/CD integration)
+
+### Setup
+
+1. Create a GitHub personal access token with `admin:org_hook` scope
+2. (Optional) Set up a Slack webhook URL for notifications
+
+### Configuration
+
+Credentials can be passed as arguments or environment variables:
+
+```bash
+# Via arguments
+python scripts/monitor_github_billing.py --org MyOrg --token ghp_xxxxx
+
+# Via environment variables
+export GITHUB_TOKEN=ghp_xxxxx
+export GITHUB_ORG=MyOrg
+python scripts/monitor_github_billing.py
+
+# With Slack notifications
+export SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+python scripts/monitor_github_billing.py
+```
+
+### Cron Integration
+
+Add to crontab for periodic monitoring (every 30 minutes):
+
+```cron
+# Monitor GitHub Actions billing every 30 minutes
+*/30 * * * * /usr/bin/python3 /path/to/scripts/monitor_github_billing.py >> /var/log/github_billing.log 2>&1
+```
+
+### Output
+
+The script outputs JSON to stdout for easy parsing:
+
+```json
+{
+  "success": true,
+  "status": "active",
+  "details": {
+    "included_minutes": 3000,
+    "total_minutes_used": 250,
+    "minutes_used_this_cycle": 125
+  },
+  "timestamp": "2026-06-24T22:45:30.123456"
+}
+```
+
+### Exit Codes
+
+- `0` — Billing is active
+- `1` — Billing is suspended or check failed
 
 ## Running Scripts
 
