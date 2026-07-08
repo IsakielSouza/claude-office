@@ -5,8 +5,6 @@ import logging
 from pathlib import Path
 from typing import TypedDict
 
-from app.core.path_utils import is_safe_transcript_path
-
 logger = logging.getLogger(__name__)
 
 
@@ -43,9 +41,6 @@ def get_last_assistant_response(jsonl_path: str | Path) -> str | None:
         The last assistant text response, or None if not found or file doesn't exist.
     """
     path = Path(jsonl_path)
-    if not is_safe_transcript_path(path):
-        logger.warning(f"Rejected transcript path outside ~/.claude/: {jsonl_path}")
-        return None
     if not path.exists():
         logger.debug(f"Transcript file not found: {jsonl_path}")
         return None
@@ -101,9 +96,6 @@ def get_first_user_prompt(jsonl_path: str | Path) -> str | None:
         The first user text prompt, or None if not found or file doesn't exist.
     """
     path = Path(jsonl_path)
-    if not is_safe_transcript_path(path):
-        logger.warning(f"Rejected transcript path outside ~/.claude/: {jsonl_path}")
-        return None
     if not path.exists():
         logger.debug(f"Transcript file not found: {jsonl_path}")
         return None
@@ -142,3 +134,58 @@ def get_first_user_prompt(jsonl_path: str | Path) -> str | None:
         logger.warning(f"Error reading transcript file {jsonl_path}: {e}")
 
     return None
+
+
+def get_session_messages(
+    jsonl_path: str | Path,
+) -> list[dict[str, str]]:
+    """Get all assistant messages from a JSONL file for summarization.
+
+    Args:
+        jsonl_path: Path to the JSONL transcript file.
+
+    Returns:
+        List of message dicts with 'role' and 'text' keys.
+    """
+    path = Path(jsonl_path)
+    if not path.exists():
+        logger.debug(f"Transcript file not found: {jsonl_path}")
+        return []
+
+    messages: list[dict[str, str]] = []
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    record: TranscriptRecord = json.loads(line)
+
+                    # Only process assistant messages
+                    if record.get("type") != "assistant":
+                        continue
+
+                    message = record.get("message", {})
+                    role = message.get("role", "")
+                    if role != "assistant":
+                        continue
+
+                    # Extract text from content blocks
+                    content_list = message.get("content", [])
+                    for content in content_list:
+                        if content.get("type") == "text":
+                            text = content.get("text")
+                            if text:
+                                messages.append({"role": role, "text": text})
+
+                except json.JSONDecodeError:
+                    continue
+
+    except OSError as e:
+        logger.warning(f"Error reading transcript file {jsonl_path}: {e}")
+        return []
+
+    return messages

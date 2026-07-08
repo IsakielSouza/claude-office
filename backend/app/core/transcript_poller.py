@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, cast
 
 from app.config import get_settings
-from app.core.path_utils import is_safe_transcript_path
 from app.models.common import BubbleContent, BubbleType
 from app.models.events import Event, EventData, EventType
 
@@ -58,10 +57,6 @@ class TranscriptPoller:
         translated_path = settings.translate_path(transcript_path)
         path = Path(translated_path).expanduser()
 
-        if not is_safe_transcript_path(path):
-            logger.warning(f"Rejected transcript path outside ~/.claude/: {translated_path}")
-            return
-
         async with self._lock:
             if agent_id in self._agents:
                 logger.debug(f"Already polling agent {agent_id}")
@@ -94,11 +89,11 @@ class TranscriptPoller:
         """Stop polling a subagent's transcript file."""
         async with self._lock:
             agent = self._agents.pop(agent_id, None)
-        if agent and agent.poll_task:
-            agent.poll_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await agent.poll_task
-            logger.info(f"Stopped polling agent {agent_id}")
+            if agent and agent.poll_task:
+                agent.poll_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await agent.poll_task
+                logger.info(f"Stopped polling agent {agent_id}")
 
     async def stop_all(self) -> None:
         """Stop all polling tasks."""
@@ -193,29 +188,15 @@ class TranscriptPoller:
         if not agent.transcript_path.exists():
             return events
 
-        if not is_safe_transcript_path(agent.transcript_path):
-            logger.warning(f"Rejected transcript path outside ~/.claude/: {agent.transcript_path}")
-            return events
-
         try:
-            path = agent.transcript_path
-            position = agent.file_position
-
-            def _read_sync() -> tuple[str, int] | None:
-                current_size = path.stat().st_size
-                if current_size <= position:
-                    return None
-                with open(path, encoding="utf-8") as f:
-                    f.seek(position)
-                    data = f.read()
-                    return data, f.tell()
-
-            result = await asyncio.to_thread(_read_sync)
-            if result is None:
+            current_size = agent.transcript_path.stat().st_size
+            if current_size <= agent.file_position:
                 return events
 
-            new_content, new_position = result
-            agent.file_position = new_position
+            with open(agent.transcript_path, encoding="utf-8") as f:
+                f.seek(agent.file_position)
+                new_content = f.read()
+                agent.file_position = f.tell()
 
             if new_content.strip():
                 agent.last_activity = datetime.now(UTC)

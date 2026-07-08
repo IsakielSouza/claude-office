@@ -11,7 +11,6 @@ import logging
 
 from app.core.broadcast_service import broadcast_state
 from app.core.jsonl_parser import get_last_assistant_response
-from app.core.path_utils import is_safe_transcript_path
 from app.core.state_machine import StateMachine
 from app.core.summary_service import get_summary_service
 from app.models.common import BubbleContent, BubbleType
@@ -59,7 +58,7 @@ async def handle_user_prompt_submit(
             "text": event.data.prompt,
             "timestamp": event.timestamp.isoformat(),
         }
-        sm.append_capped(conv_entry)
+        sm.conversation.append(conv_entry)
 
     await broadcast_state(event.session_id, sm)
 
@@ -103,7 +102,7 @@ async def handle_stop(
             "text": full_response,
             "timestamp": event.timestamp.isoformat(),
         }
-        sm.append_capped(assistant_entry)
+        sm.conversation.append(assistant_entry)
 
     await detect_and_set_print_report(sm)
     logger.info(f"STOP event: print_report = {sm.print_report}")
@@ -131,10 +130,6 @@ async def extract_and_set_boss_speech(
 
     settings = get_settings()
     translated_path = settings.translate_path(transcript_path)
-
-    if not is_safe_transcript_path(translated_path):
-        logger.warning(f"Rejected transcript path outside ~/.claude/: {translated_path}")
-        return None
 
     response = get_last_assistant_response(translated_path)
     if not response:

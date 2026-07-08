@@ -1,5 +1,4 @@
 import asyncio
-import hmac
 import logging
 import re
 from typing import Any
@@ -7,42 +6,30 @@ from typing import Any
 from fastapi import WebSocket
 from starlette.websockets import WebSocketState
 
+from app.config import get_settings
+
 logger = logging.getLogger(__name__)
 
 # Valid session/room IDs: alphanumeric, dashes, underscores only
 _VALID_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
 
-# Origins permitted for WebSocket connections (localhost only)
-_ALLOWED_WS_ORIGINS = frozenset(
-    {
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    }
-)
+# Origins permitted for WebSocket connections — sourced from settings.BACKEND_CORS_ORIGINS
+# so a single .env entry controls both HTTP CORS and WebSocket allowlist.
+_ALLOWED_WS_ORIGINS = frozenset(get_settings().BACKEND_CORS_ORIGINS)
 
 
 def validate_websocket_origin(websocket: WebSocket) -> bool:
     """Check the Origin header on a WebSocket handshake.
 
-    Browser connections must come from an allowed localhost origin.
-    Non-browser connections (no Origin header) must present a valid
-    X-API-Key matching the *effective* API key (either user-configured
-    or the per-launch auto-generated token).  This prevents arbitrary
-    local processes from subscribing to the session-state stream when
-    no explicit key is configured.
+    Returns True if the origin is allowed (localhost) or absent (non-browser
+    clients like the test suite may not send Origin).  Returns False for
+    disallowed origins.
     """
     origin = websocket.headers.get("origin")
-    if origin is not None:
-        return origin.rstrip("/") in _ALLOWED_WS_ORIGINS
-
-    # Non-browser clients (no Origin) — always require the effective API key
-    from app.config import get_settings
-
-    key = get_settings().effective_api_key
-    provided = websocket.headers.get("x-api-key", "")
-    return hmac.compare_digest(provided, key)
+    if origin is None:
+        # Non-browser clients (curl, test suite) -- rely on localhost middleware
+        return True
+    return origin.rstrip("/") in _ALLOWED_WS_ORIGINS
 
 
 def validate_session_id(session_id: str) -> bool:
@@ -56,7 +43,8 @@ class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: dict[str, list[WebSocket]] = {}
         self.room_connections: dict[str, list[WebSocket]] = {}
-        self.overview_connections: list[WebSocket] = []
+        self.building_connections: list[WebSocket] = []
+        self.coordination_connections: list[WebSocket] = []
         self._lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
@@ -201,52 +189,80 @@ class ConnectionManager:
         await self._broadcast_to_connections(message, connections, self.room_connections, room_id)
 
     # ------------------------------------------------------------------
-    # Overview-level WebSocket support (Command Center — cross-session)
+    # Building-level WebSocket support
     # ------------------------------------------------------------------
 
-    async def connect_overview(self, websocket: WebSocket, *, max_connections: int) -> bool:
-        """Accept a WebSocket connection and register it for the overview feed.
-
-        Returns False (without accepting) when adding the connection would
-        exceed ``max_connections``. The cap check and the append both run under
-        the lock to close the TOCTOU window where a burst of concurrent
-        handshakes each pass the limit before any registers.
-        """
+    async def connect_building(self, websocket: WebSocket) -> None:
+        """Accept a WebSocket connection for the single building feed."""
+        await websocket.accept()
         async with self._lock:
-            if len(self.overview_connections) >= max_connections:
-                return False
-            await websocket.accept()
-            self.overview_connections.append(websocket)
-            return True
+            self.building_connections.append(websocket)
 
-    async def disconnect_overview(self, websocket: WebSocket) -> None:
-        """Remove a WebSocket connection from the overview feed."""
+    async def disconnect_building(self, websocket: WebSocket) -> None:
+        """Remove a WebSocket connection from the building feed."""
         async with self._lock:
-            if websocket in self.overview_connections:
-                self.overview_connections.remove(websocket)
+            if websocket in self.building_connections:
+                self.building_connections.remove(websocket)
 
-    async def broadcast_overview(self, message: dict[str, Any]) -> None:
-        """Send a message to all WebSocket clients on the overview feed."""
+    async def broadcast_building(self, message: dict[str, Any]) -> None:
+        """Send a message to all clients connected to the building feed."""
         async with self._lock:
-            connections = self.overview_connections.copy()
-
+            connections = self.building_connections.copy()
         if not connections:
             return
-
         failed: list[WebSocket] = []
         for connection in connections:
             try:
                 if connection.client_state == WebSocketState.CONNECTED:
                     await connection.send_json(message)
             except Exception as e:
-                logger.warning("Failed to send to overview WebSocket: %s", e)
+                logger.warning("Failed to send to building WebSocket: %s", e)
                 failed.append(connection)
-
         if failed:
             async with self._lock:
                 for conn in failed:
-                    if conn in self.overview_connections:
-                        self.overview_connections.remove(conn)
+                    if conn in self.building_connections:
+                        self.building_connections.remove(conn)
+
+    # ------------------------------------------------------------------
+    # Coordination cockpit feed (:5433) — substitui o poll de 15s do cockpit
+    # ------------------------------------------------------------------
+
+    async def connect_coordination(self, websocket: WebSocket) -> None:
+        """Accept a WebSocket connection for the coordination cockpit feed."""
+        await websocket.accept()
+        async with self._lock:
+            self.coordination_connections.append(websocket)
+
+    async def disconnect_coordination(self, websocket: WebSocket) -> None:
+        """Remove a WebSocket connection from the coordination feed."""
+        async with self._lock:
+            if websocket in self.coordination_connections:
+                self.coordination_connections.remove(websocket)
+
+    async def broadcast_coordination(self, message: dict[str, Any]) -> None:
+        """Send a message to all clients connected to the coordination feed."""
+        async with self._lock:
+            connections = self.coordination_connections.copy()
+        if not connections:
+            return
+        failed: list[WebSocket] = []
+        for connection in connections:
+            try:
+                if connection.client_state == WebSocketState.CONNECTED:
+                    await connection.send_json(message)
+            except Exception as e:
+                logger.warning("Failed to send to coordination WebSocket: %s", e)
+                failed.append(connection)
+        if failed:
+            async with self._lock:
+                for conn in failed:
+                    if conn in self.coordination_connections:
+                        self.coordination_connections.remove(conn)
+
+    def coordination_client_count(self) -> int:
+        """Nº de clientes no feed de coordenação (o poller pula o poll se 0)."""
+        return len(self.coordination_connections)
 
 
 manager = ConnectionManager()

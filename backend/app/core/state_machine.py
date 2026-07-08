@@ -2,7 +2,7 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import Enum, auto
 from typing import Any, cast
 
@@ -204,7 +204,6 @@ def _handle_session_start(sm: "StateMachine", event: Event) -> None:
     """Handle SESSION_START: initialize office state for a new session."""
     sm.phase = OfficePhase.STARTING
     sm.boss_state = BossState.IDLE
-    sm.turn_active = False
     sm.whiteboard.reset()
     sm.whiteboard.add_news_item("session", "New session started - ready for work!")
 
@@ -263,7 +262,6 @@ def _handle_user_prompt_submit(sm: "StateMachine", event: Event) -> None:
     sm.boss_state = BossState.RECEIVING
     prompt_text = event.data.prompt if event.data else ""
     sm.print_report = False
-    sm.turn_active = True
     sm.last_user_prompt = prompt_text
     if prompt_text:
         sm.boss_bubble = BubbleContent(
@@ -383,7 +381,6 @@ def _handle_stop(sm: "StateMachine", event: Event) -> None:
     """Handle STOP: main agent completes work, show completion message."""
     sm.phase = OfficePhase.COMPLETING
     sm.boss_state = BossState.COMPLETING
-    sm.turn_active = False
 
     speech_text = (
         event.data.speech_content.boss_phone
@@ -405,7 +402,6 @@ def _handle_session_end(sm: "StateMachine", event: Event) -> None:
     sm.phase = OfficePhase.ENDED
     sm.boss_state = BossState.IDLE
     sm.boss_current_task = None
-    sm.turn_active = False
 
 
 def _handle_background_task_notification(sm: "StateMachine", event: Event) -> None:
@@ -461,7 +457,6 @@ def _handle_teammate_idle(sm: "StateMachine", event: Event) -> None:
     """Handle TEAMMATE_IDLE: set teammate boss state to idle."""
     sm.boss_state = BossState.IDLE
     sm.boss_bubble = None
-    sm.turn_active = False
 
 
 # ---------------------------------------------------------------------------
@@ -520,7 +515,6 @@ class StateMachine:
 
     MAX_AGENTS = 8
     MAX_CONTEXT_TOKENS = 200_000
-    MAX_CONVERSATION_ENTRIES = 500
 
     phase: OfficePhase = OfficePhase.EMPTY
     boss_state: BossState = BossState.IDLE
@@ -535,11 +529,6 @@ class StateMachine:
     token_tracker: TokenTracker = field(default_factory=TokenTracker)
     tool_uses_since_compaction: int = 0
     print_report: bool = False
-    # True from the moment a user prompt arrives until the turn completes
-    # (STOP) or the session ends. Lets the Command Center treat the brief
-    # idle *between* tool calls as "still working" instead of flickering the
-    # terminal into the "done" zone and back every tool cycle.
-    turn_active: bool = False
     last_user_prompt: str | None = None
     background_tasks: list[BackgroundTask] = field(default_factory=_empty_background_tasks)
     conversation: list[ConversationEntry] = field(default_factory=_empty_conversation)
@@ -688,20 +677,6 @@ class StateMachine:
     # Core methods
     # ---------------------------------------------------------------------------
 
-    def append_capped(
-        self,
-        entry: ConversationEntry,
-        max_len: int = MAX_CONVERSATION_ENTRIES,
-    ) -> None:
-        """Append a conversation entry, capping history to *max_len* entries.
-
-        Keeps the most recent ``max_len`` entries so the conversation list does
-        not grow without bound during long-running or restored sessions.
-        """
-        self.conversation.append(entry)
-        if len(self.conversation) > max_len:
-            self.conversation = self.conversation[-max_len:]
-
     def to_game_state(self, session_id: str) -> GameState:
         """Convert current state to a GameState for frontend consumption.
 
@@ -761,7 +736,7 @@ class StateMachine:
             boss=boss,
             agents=agents_list,
             office=office,
-            last_updated=datetime.now(UTC),
+            last_updated=datetime.now(),
             history=self.history,
             todos=self.todos,
             arrival_queue=self.arrival_queue.copy(),

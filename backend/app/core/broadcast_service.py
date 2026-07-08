@@ -8,14 +8,15 @@ full EventProcessor class.
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Any
 
 from app.api.websocket import manager
+from app.core.floor_config import BuildingConfig
 from app.core.state_machine import StateMachine
 from app.models.sessions import GameState, HistoryEntry
 
 if TYPE_CHECKING:
+    from app.core.building_orchestrator import BuildingOrchestrator
     from app.core.room_orchestrator import RoomOrchestrator
 
 __all__ = [
@@ -23,7 +24,7 @@ __all__ = [
     "broadcast_event",
     "broadcast_error",
     "broadcast_room_state",
-    "broadcast_overview_state",
+    "broadcast_building_state",
 ]
 
 
@@ -96,36 +97,26 @@ async def broadcast_room_state(room_id: str, orchestrator: RoomOrchestrator) -> 
     )
 
 
-async def broadcast_overview_state(
+async def broadcast_building_state(
+    orchestrator: BuildingOrchestrator,
     sessions: dict[str, StateMachine],
-    sessions_lock: asyncio.Lock | None = None,
+    config: BuildingConfig,
+    display_names: dict[str, str] | None = None,
 ) -> None:
-    """Broadcast the cross-session overview to all ``/ws/overview`` clients.
+    """Broadcast the compact BuildingState to all /ws/building clients.
 
-    Skips building the payload entirely when nobody is watching the Command
-    Center, so the per-event hook stays cheap in the common case.
-
-    ``build_overview`` reads the live session registry and each StateMachine's
-    mutable collections, which concurrent event handlers rewrite (e.g.
-    ``self.sessions[id] = ...`` / ``del sm.agents[id]``). When *sessions_lock*
-    is supplied it is held across the build so the registry can't be resized
-    mid-iteration. Callers must NOT already hold the lock (it is acquired here
-    exactly once, so there is no re-entry / deadlock risk).
+    No-ops (and skips building the state) when no clients are connected.
+    Uses the live module-level manager so override_manager() in tests works.
     """
-    if not manager.overview_connections:
-        return
-    # Local import avoids any import-order coupling at module load.
-    from app.core.room_orchestrator import build_overview
+    import app.api.websocket as _ws
 
-    if sessions_lock is not None:
-        async with sessions_lock:
-            overview = build_overview(sessions)
-    else:
-        overview = build_overview(sessions)
-    await manager.broadcast_overview(
+    live_manager = _ws.manager
+    if not live_manager.building_connections:
+        return
+    state = orchestrator.build_state(sessions, config, display_names)
+    await live_manager.broadcast_building(
         {
-            "type": "state_update",
-            "timestamp": overview.last_updated.isoformat(),
-            "state": overview.model_dump(mode="json", by_alias=True),
+            "type": "building_state",
+            "state": state.model_dump(mode="json", by_alias=True),
         }
     )

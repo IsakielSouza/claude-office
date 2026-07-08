@@ -1,4 +1,3 @@
-import secrets
 from functools import lru_cache
 from pathlib import Path
 
@@ -22,7 +21,18 @@ class Settings(BaseSettings):
     ]
 
     DATABASE_URL: str = f"sqlite+aiosqlite:///{_DEFAULT_DB_PATH}"
+    # Read-only Postgres de coordenação (:5433). Forma asyncpg. Lido do .env como
+    # COORDINATION_DATABASE_URL. Sem senha no default => defina no .env para uso real;
+    # se inacessível, as rotas /coordination/* degradam para 503.
+    COORDINATION_DATABASE_URL: str = "postgresql+asyncpg://coordinator@127.0.0.1:5433/coordination"
     GIT_POLL_INTERVAL: int = 5
+
+    # Botão Play (#833): dispara loop de agente / dispatch de issue na hora, sem
+    # esperar o cron. Os scripts de orquestração vivem no repo de coordenação
+    # (hmtrack-documentacao); o backend já lê o roster de lá. Configurável p/ deploy.
+    AGENTS_REPO_DIR: str = "/home/isakiel/projects/zartoo/hmtrack-documentacao"
+    # Cap global de dispatches simultâneos — espelha DISPATCH_CAP do dispatch-agent.sh.
+    DISPATCH_CAP: int = 8
 
     CLAUDE_CODE_OAUTH_TOKEN: str = ""
     SUMMARY_MODEL: str = "claude-haiku-4-5-20251001"
@@ -40,26 +50,10 @@ class Settings(BaseSettings):
     # catching zombies quickly.
     ZOMBIE_SUBAGENT_TIMEOUT_SECONDS: int = 90
 
-    # API key for authenticating hook requests. When set, all requests
-    # must include this value in the X-API-Key header. When empty, a
-    # per-launch random token is generated for state-changing endpoints
-    # and WebSocket non-browser connections.
-    CLAUDE_OFFICE_API_KEY: str = ""
-
-    # Auto-generated per-launch token. Used as the effective API key when
-    # CLAUDE_OFFICE_API_KEY is not explicitly set. This ensures state-changing
-    # endpoints always require an API key even in the default configuration.
-    _auto_api_key: str = secrets.token_hex(32)
-
-    @property
-    def effective_api_key(self) -> str:
-        """Return the configured API key, or the per-launch auto-generated token."""
-        return self.CLAUDE_OFFICE_API_KEY or self._auto_api_key
-
-    @property
-    def has_explicit_key(self) -> bool:
-        """True when the user explicitly set CLAUDE_OFFICE_API_KEY."""
-        return bool(self.CLAUDE_OFFICE_API_KEY)
+    # Ops > Servidores (caminhos fixos da máquina de dev; o por-destino vem do DB)
+    OPS_BUILD_SCRIPT: str = str(Path.home() / "projects/zartoo/build-push-alocalizai.sh")
+    OPS_ZARTOO_DIR: str = str(Path.home() / "projects/zartoo")
+    OPS_LOG_DIR: str = str(Path.home() / ".claude-office/ops")
 
     model_config = SettingsConfigDict(env_file=".env")
 

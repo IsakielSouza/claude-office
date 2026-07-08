@@ -1,9 +1,9 @@
-import hmac
+import asyncio
 import importlib
 import logging
 import os
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -16,7 +16,7 @@ from sqlalchemy import text, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api.routes import events, floors, preferences, sessions
+from app.api.routes import coordination, events, floors, ops, preferences, sessions
 from app.api.websocket import (
     manager,
 )
@@ -32,10 +32,6 @@ STATIC_DIR = Path(__file__).parent.parent / "static"
 _SERVE_STATIC = os.environ.get("SERVE_STATIC", "").lower() in ("1", "true", "yes")
 
 _LOCALHOST_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
-
-# Upper bound on concurrent /ws/overview (Command Center) watchers. Each one
-# amplifies the per-event overview rebuild cost, so refuse new ones past this.
-_MAX_OVERVIEW_CONNECTIONS = 16
 
 
 class LocalhostOnlyMiddleware(BaseHTTPMiddleware):
@@ -59,69 +55,9 @@ class LocalhostOnlyMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-# Paths that do NOT require an API key (health checks, interactive docs).
-# The OpenAPI schema URL is checked separately in the middleware because it is
-# served under settings.API_V1_STR (e.g. /api/v1/openapi.json), not /openapi.json.
-_NO_AUTH_PATHS = frozenset({"/health", "/docs", "/redoc"})
-
-
-def _is_state_changing(path: str, method: str) -> bool:
-    """Return True if the request targets a destructive global endpoint.
-
-    When no explicit ``CLAUDE_OFFICE_API_KEY`` is configured, only the
-    destructive *global* operations (clearing all sessions, running a
-    simulation) require the auto-generated token.  Per-session mutations
-    (delete, label, focus) and preferences writes remain open in the default
-    configuration; they are still fully gated whenever an explicit key is set
-    (handled by ``settings.has_explicit_key`` in the middleware).
-    """
-    prefix = settings.API_V1_STR + "/sessions"
-    return (path == prefix and method == "DELETE") or (
-        path == f"{prefix}/simulate" and method == "POST"
-    )
-
-
-class ApiKeyMiddleware(BaseHTTPMiddleware):
-    """Validate X-API-Key header for protected endpoints.
-
-    * When ``CLAUDE_OFFICE_API_KEY`` is explicitly set, ALL non-public paths
-      require the key (existing behaviour).
-    * When the key is empty (default), state-changing endpoints still require
-      the per-launch auto-generated token (``settings.effective_api_key``).
-      Read-only paths remain open for backwards compatibility.
-    """
-
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
-        if request.method == "OPTIONS":
-            return await call_next(request)
-
-        # Skip auth for public paths and WebSocket handshakes
-        if (
-            request.url.path in _NO_AUTH_PATHS
-            or request.url.path == f"{settings.API_V1_STR}/openapi.json"
-            or request.url.path.startswith("/ws/")
-        ):
-            return await call_next(request)
-
-        # Determine whether auth is required for this request
-        requires_auth = settings.has_explicit_key or _is_state_changing(
-            request.url.path, request.method
-        )
-
-        if not requires_auth:
-            return await call_next(request)
-
-        provided = request.headers.get("X-API-Key", "")
-        if not hmac.compare_digest(provided, settings.effective_api_key):
-            return JSONResponse(status_code=401, content={"detail": "Invalid API key"})
-
-        return await call_next(request)
-
-
 logging.basicConfig(
     level=logging.INFO, format="%(message)s", handlers=[RichHandler(rich_tracebacks=True)]
 )
-logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -168,24 +104,50 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_schema(conn)
 
-    await _reap_stale_sessions()
+    # Seed do destino padrão (alocalizai) se a tabela estiver vazia.
+    from sqlalchemy import select as _select
 
-    # Log the effective API key so users can see what protects state-changing
-    # endpoints when CLAUDE_OFFICE_API_KEY is not explicitly configured.
-    if not settings.has_explicit_key:
-        logger.info(
-            "Auto-generated API key for state-changing endpoints: %s",
-            settings.effective_api_key[:8] + "…",
-        )
+    from app.db.database import get_session_factory
+    from app.db.models import OpsDestination
+
+    async with get_session_factory()() as _s:
+        exists = (await _s.execute(_select(OpsDestination).limit(1))).first()
+        if not exists:
+            _s.add(
+                OpsDestination(
+                    id="alocalizai",
+                    label="alocalizai (flt)",
+                    ssh_alias="flt",
+                    remote_base="/root/project",
+                    compose_file="docker-compose.alocalizai.yml",
+                    front_api_url="https://core.alocalizai.com.br/v1/",
+                    image_registry="ghcr.io/isakielsouza",
+                    image_tag="alocalizai",
+                    enabled=True,
+                )
+            )
+            await _s.commit()
+
+    await _reap_stale_sessions()
 
     git_service.start()
 
+    # Poller do feed de coordenação (#412): 1 poll server-side → broadcast WS,
+    # substitui o poll de 15s por-cliente do cockpit.
+    from app.core.coordination_poller import coordination_poller_loop
+
+    coordination_task = asyncio.create_task(coordination_poller_loop())
+
     yield
 
-    # Cancel any pending debounced overview broadcast so shutdown is clean.
-    await event_processor.shutdown()
+    coordination_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await coordination_task
     await git_service.stop()
     await get_engine().dispose()
+    from app.db.coordination import dispose_coordination_engine
+
+    await dispose_coordination_engine()
 
 
 async def _reap_stale_sessions() -> None:
@@ -203,7 +165,7 @@ async def _reap_stale_sessions() -> None:
             .execution_options(synchronize_session="fetch")
         )
         await db.commit()
-        count = getattr(result, "rowcount", 0) or 0
+        count = int(str(getattr(result, "rowcount", 0)))
         if count > 0:
             reap_logger.info("Reaped %d stale sessions (inactive >48h)", count)
 
@@ -224,12 +186,13 @@ app.add_middleware(
 )
 
 app.add_middleware(LocalhostOnlyMiddleware)
-app.add_middleware(ApiKeyMiddleware)
 
 app.include_router(events.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(floors.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(preferences.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(sessions.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(coordination.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(ops.router, prefix=f"{settings.API_V1_STR}")
 
 
 @app.get("/health")
@@ -239,66 +202,69 @@ async def health_check() -> dict[str, str]:
 
 @app.get("/api/v1/status")
 async def get_status() -> dict[str, bool | str | None]:
-    """Get server status including AI summary availability and the effective API key.
-
-    The effective API key is either the user-configured ``CLAUDE_OFFICE_API_KEY``
-    or the per-launch auto-generated token.  The frontend needs this to send
-    authenticated requests to state-changing endpoints.  This route is only
-    reachable from localhost (enforced by ``LocalhostOnlyMiddleware``).
-    """
+    """Get server status including AI summary availability."""
     summary_service = get_summary_service()
     return {
         "aiSummaryEnabled": summary_service.enabled,
         "aiSummaryModel": summary_service.model if summary_service.enabled else None,
-        "apiKey": settings.effective_api_key,
     }
 
 
-@app.websocket("/ws/overview")
-async def websocket_overview(websocket: WebSocket) -> None:
-    """Overview WebSocket: boss status of every live session (Command Center).
+@app.websocket("/ws/building")
+async def websocket_building(websocket: WebSocket) -> None:
+    """Building-level WebSocket: compact live state for all floors.
 
-    Declared BEFORE ``/ws/{session_id}`` so the single-segment path ``/ws/overview``
-    isn't captured by the session route (which would treat "overview" as a session
-    id, accept, find no state, and silently idle).
-    """
+    DEVE vir ANTES de `/ws/{session_id}` (param route greedy capturava "building"
+    como session_id e mandava git_status em vez de building_state — bug latente
+    descoberto no #412)."""
     from app.api.websocket import validate_websocket_origin
 
     if not validate_websocket_origin(websocket):
         await websocket.close(code=4003, reason="Origin not allowed")
         return
 
-    # Cap concurrent overview watchers: each connection amplifies the per-event
-    # overview rebuild cost, so refuse beyond the limit instead of letting it
-    # grow unbounded. The check is enforced atomically with the registration
-    # inside connect_overview (under the manager lock) so a burst of concurrent
-    # handshakes can't each pass the limit before any registers.
-    accepted = await manager.connect_overview(websocket, max_connections=_MAX_OVERVIEW_CONNECTIONS)
-    if not accepted:
-        await websocket.close(code=4013, reason="Too many overview connections")
-        return
+    await manager.connect_building(websocket)
     try:
-        # Send the current overview snapshot on connect. Built under the same
-        # ``_sessions_lock`` used by the per-event broadcast so it reads a
-        # consistent registry snapshot and can't race a concurrent event handler
-        # resizing ``sessions`` mid-iteration.
-        overview = await event_processor.build_overview_snapshot()
+        # Send a snapshot on connect.
+        snapshot = event_processor.build_building_snapshot()
         await websocket.send_json(
             {
-                "type": "state_update",
-                "timestamp": overview.last_updated.isoformat(),
-                "state": overview.model_dump(mode="json", by_alias=True),
+                "type": "building_state",
+                "state": snapshot.model_dump(mode="json", by_alias=True),
             }
         )
-        # Keep alive -- discard incoming messages
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
-        pass
     except Exception:
-        logger.warning("Overview WebSocket error", exc_info=True)
+        pass
     finally:
-        await manager.disconnect_overview(websocket)
+        await manager.disconnect_building(websocket)
+
+
+@app.websocket("/ws/coordination")
+async def websocket_coordination(websocket: WebSocket) -> None:
+    """Feed de coordenação (:5433): empurra `coordination_update` quando o estado
+    muda, substituindo o poll de 15s do cockpit (#412). O cliente faz o fetch real
+    (REST) ao receber o sinal — o WS só avisa "mudou".
+
+    DEVE vir ANTES de `/ws/{session_id}`: Starlette casa a 1ª rota, e o param route
+    greedy capturaria "coordination" como session_id (idem /ws/building/room)."""
+    from app.api.websocket import validate_websocket_origin
+
+    if not validate_websocket_origin(websocket):
+        await websocket.close(code=4003, reason="Origin not allowed")
+        return
+
+    await manager.connect_coordination(websocket)
+    try:
+        # "hello" no connect — o cliente já dispara o 1º fetch ao montar.
+        await websocket.send_json({"type": "coordination_hello"})
+        while True:
+            await websocket.receive_text()
+    except Exception:
+        pass
+    finally:
+        await manager.disconnect_coordination(websocket)
 
 
 @app.websocket("/ws/{session_id}")
@@ -330,7 +296,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str) -> None:
     if project_root:
         git_service.configure(session_id=session_id, project_root=project_root)
 
-    git_status = git_service.get_status(session_id=session_id)
+    git_status = git_service.get_status()
     if git_status:
         await manager.send_personal_message(
             {
@@ -346,7 +312,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str) -> None:
             await websocket.receive_text()
     except WebSocketDisconnect:
         await manager.disconnect(websocket, session_id)
-        git_service.remove_session(session_id)
 
 
 @app.websocket("/ws/room/{room_id}")
@@ -381,10 +346,8 @@ async def websocket_room(websocket: WebSocket, room_id: str) -> None:
         # Keep alive -- discard incoming messages
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
-        pass
     except Exception:
-        logger.warning("Room WebSocket error for %s", room_id, exc_info=True)
+        pass
     finally:
         await manager.disconnect_room(websocket, room_id)
 

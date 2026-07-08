@@ -18,16 +18,16 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from app.api.websocket import manager
 from app.config import get_settings
 from app.core.beads_poller import get_beads_poller, has_beads, init_beads_poller
 from app.core.broadcast_service import (
+    broadcast_building_state,
     broadcast_error,
     broadcast_event,
-    broadcast_overview_state,
     broadcast_room_state,
     broadcast_state,
 )
+from app.core.building_orchestrator import BuildingOrchestrator
 from app.core.floor_config import get_cached_building_config
 from app.core.handlers import (
     enrich_agent_from_transcript,
@@ -55,9 +55,9 @@ from app.core.transcript_poller import init_transcript_poller
 from app.db.database import AsyncSessionLocal
 from app.db.models import EventRecord, SessionRecord
 from app.models.agents import AgentState
+from app.models.building import BuildingState
 from app.models.common import TodoItem
 from app.models.events import Event, EventData, EventType
-from app.models.overview import OverviewState
 from app.models.sessions import ConversationEntry, GameState, HistoryEntry
 from app.services.git_service import git_service
 
@@ -164,16 +164,13 @@ class EventProcessor:
         """Initialize the EventProcessor with empty session and orchestrator registries."""
         self.sessions: dict[str, StateMachine] = {}
         self.orchestrators: dict[str, RoomOrchestrator] = {}
+        self.building_orchestrator = BuildingOrchestrator()
+        self._display_names: dict[str, str] = {}
         self._sessions_lock = asyncio.Lock()
         self._transcript_poller_initialized = False
         self._task_poller_initialized = False
         self._beads_poller_initialized = False
         self._beads_sessions: set[str] = set()  # Sessions with active beads polling
-        # Coalesces Command Center overview broadcasts: bursts of events schedule
-        # a single deferred flush instead of rebuilding the full peer-merge once
-        # per event (O(N x events/sec)). See ``_schedule_overview_broadcast``.
-        self._overview_flush_task: asyncio.Task[None] | None = None
-        self._overview_flush_interval = 0.05  # 50 ms debounce window
 
     # ------------------------------------------------------------------
     # Poller lifecycle helpers
@@ -278,6 +275,11 @@ class EventProcessor:
             return sm.to_game_state(session_id)
         return None
 
+    def build_building_snapshot(self) -> BuildingState:
+        """Build the current compact BuildingState from in-memory sessions."""
+        config = get_cached_building_config()
+        return self.building_orchestrator.build_state(self.sessions, config, self._display_names)
+
     async def get_project_root(self, session_id: str) -> str | None:
         """Get the cached project_root for a session from the database.
 
@@ -366,39 +368,53 @@ class EventProcessor:
 
         await self._persist_event(event, resolved_floor_id, resolved_room_id)
 
-        # Replay from DB *before* acquiring the lock: the restore is async I/O
-        # that can take hundreds of ms for a long session, and holding the lock
-        # across it stalls the debounced overview broadcast and /ws/overview
-        # connects. Only the dict insertion below needs the lock.
-        restored: StateMachine | None = None
+        # Track display name + floor activity for the building feed.
+        if event.data:
+            source_dir = event.data.project_dir or event.data.working_dir
+            display = derive_display_name(
+                working_dir=source_dir, project_name=event.data.project_name
+            )
+            if display:
+                self._display_names[event.session_id] = display
+        self.building_orchestrator.record_activity(resolved_floor_id, event.timestamp.isoformat())
+
         if event.session_id not in self.sessions:
-            restored = await self._build_restored_state_machine(event.session_id)
+            await self._restore_session(event.session_id)
 
-        async with self._sessions_lock:
-            if event.session_id not in self.sessions:
-                self.sessions[event.session_id] = (
-                    restored if restored is not None else StateMachine()
-                )
+        if event.session_id not in self.sessions:
+            self.sessions[event.session_id] = StateMachine()
 
-            # Capture the StateMachine reference while still holding the lock so a
-            # concurrent clear_all_sessions()/remove_session() can't drop the key
-            # between this lookup and use (which would raise KeyError).
-            sm = self.sessions[event.session_id]
+        sm = self.sessions[event.session_id]
 
         sm.transition(event)
 
-        # Apply resolved floor/room to in-memory state machine.
-        if resolved_floor_id:
-            sm.floor_id = resolved_floor_id
-            sm.room_id = resolved_room_id
-
-        # Sync team fields from event data.
+        # Sync team fields from event data BEFORE resolving the room key so the
+        # room scoping below can tell apart real Agent Teams (shared team_name)
+        # from independent solo sessions that merely share a repo.
         if event.data:
             if event.data.team_name is not None:
                 sm.team_name = event.data.team_name
             if event.data.teammate_name is not None:
                 sm.teammate_name = event.data.teammate_name
                 sm.is_lead = False
+
+        # Apply resolved floor/room to in-memory state machine.
+        #
+        # The ProductMapper keys rooms by repo name, so every session in the
+        # same repo resolves to the same room_id. That is correct for real
+        # Agent Teams (they share a team_name and SHOULD merge into one room),
+        # but wrong for independent solo sessions that merely share a repo —
+        # they would be fused onto the same desk by the RoomOrchestrator.
+        #
+        # Fix: for solo sessions (no team_name) scope the room_id by
+        # session_id so each one becomes its own room/BOSS. Sessions with a
+        # real team_name keep the shared, repo-derived room_id and still merge.
+        if resolved_floor_id:
+            sm.floor_id = resolved_floor_id
+            if resolved_room_id and not sm.team_name:
+                sm.room_id = f"{resolved_room_id}::{event.session_id}"
+            else:
+                sm.room_id = resolved_room_id
 
         agent_id = event.data.agent_id if event.data and event.data.agent_id else "main"
 
@@ -475,6 +491,14 @@ class EventProcessor:
         await broadcast_state(event.session_id, sm)
         await broadcast_event(event.session_id, event_dict)
 
+        # Building-level broadcast (all-floors live view)
+        await broadcast_building_state(
+            self.building_orchestrator,
+            self.sessions,
+            building_config,
+            self._display_names,
+        )
+
         # ------------------------------------------------------------------
         # Room orchestrator broadcast (team sessions)
         # ------------------------------------------------------------------
@@ -545,68 +569,6 @@ class EventProcessor:
         if event.event_type == EventType.TEAMMATE_IDLE:
             await handle_teammate_idle(sm, event)
 
-        # ------------------------------------------------------------------
-        # Cross-session overview broadcast (Command Center). Scheduled LAST so
-        # it reflects the field mutations applied by the event-type-specific
-        # handlers above (e.g. boss_current_task, agents). Debounced so a burst
-        # of events produces at most one broadcast per ~50 ms instead of one per
-        # event. No-op when no one is watching /ws/overview.
-        # ------------------------------------------------------------------
-        self._schedule_overview_broadcast()
-
-    # ------------------------------------------------------------------
-    # Command Center overview (debounced cross-session broadcast)
-    # ------------------------------------------------------------------
-
-    def _schedule_overview_broadcast(self) -> None:
-        """Coalesce overview broadcasts into one deferred flush per ~50 ms.
-
-        Without watchers the build is skipped entirely (cheap no-op), so the
-        early ``overview_connections`` guard is preserved. When a flush is
-        already pending we let it run instead of stacking tasks: the pending
-        flush rebuilds from ``self.sessions`` at fire time, so it always
-        captures the final state of the burst (no dropped updates).
-        """
-        if not manager.overview_connections:
-            return
-        if self._overview_flush_task is not None and not self._overview_flush_task.done():
-            return
-        self._overview_flush_task = asyncio.create_task(self._flush_overview_broadcast())
-
-    async def _flush_overview_broadcast(self) -> None:
-        """Wait out the debounce window, then broadcast a single overview."""
-        try:
-            await asyncio.sleep(self._overview_flush_interval)
-            await broadcast_overview_state(self.sessions, self._sessions_lock)
-        except asyncio.CancelledError:  # pragma: no cover - shutdown path
-            raise
-        except Exception as e:
-            logger.exception(f"Error broadcasting overview state: {e}")
-
-    async def shutdown(self) -> None:
-        """Cancel a pending debounced overview broadcast on app shutdown.
-
-        Without this the flush task is left pending at loop close and asyncio
-        logs "Task was destroyed but it is pending!".
-        """
-        task = self._overview_flush_task
-        if task is not None and not task.done():
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
-
-    async def build_overview_snapshot(self) -> OverviewState:
-        """Build a cross-session overview under ``_sessions_lock``.
-
-        Used by the ``/ws/overview`` connect path so the initial snapshot reads a
-        consistent registry (no concurrent resize) without the caller touching
-        the private lock directly.
-        """
-        from app.core.room_orchestrator import build_overview
-
-        async with self._sessions_lock:
-            return build_overview(self.sessions)
-
     # ------------------------------------------------------------------
     # DB helpers
     # ------------------------------------------------------------------
@@ -641,14 +603,11 @@ class EventProcessor:
             db.add(event_rec)
             await db.commit()
 
-    async def _build_restored_state_machine(self, session_id: str) -> StateMachine | None:
+    async def _restore_session(self, session_id: str) -> None:
         """Reconstruct a StateMachine from persisted DB events.
 
         Replays all events for the session through a fresh StateMachine,
-        rebuilding agent state, conversation history, and task lists. Performs
-        only async DB I/O against a locally-built machine, so it is safe to call
-        without holding ``_sessions_lock``; the caller inserts the result under
-        the lock. Returns ``None`` when the session has no persisted events.
+        rebuilding agent state, conversation history, and task lists.
 
         Args:
             session_id: The session to restore.
@@ -662,7 +621,7 @@ class EventProcessor:
             events = result.scalars().all()
 
             if not events:
-                return None
+                return
 
             logger.info(f"Restoring session {session_id} from {len(events)} events in DB")
 
@@ -703,7 +662,7 @@ class EventProcessor:
                             "text": evt.data.prompt,
                             "timestamp": evt.timestamp.isoformat(),
                         }
-                        sm.append_capped(conv_entry)
+                        sm.conversation.append(conv_entry)
                     elif evt.event_type == EventType.PRE_TOOL_USE and evt.data:
                         if evt.data.thinking:
                             thinking_entry: ConversationEntry = {
@@ -713,7 +672,7 @@ class EventProcessor:
                                 "text": evt.data.thinking,
                                 "timestamp": evt.timestamp.isoformat(),
                             }
-                            sm.append_capped(thinking_entry)
+                            sm.conversation.append(thinking_entry)
                         if evt.data.tool_name:
                             tool_entry: ConversationEntry = {
                                 "id": f"{evt.timestamp.timestamp()}_tool",
@@ -723,7 +682,7 @@ class EventProcessor:
                                 "timestamp": evt.timestamp.isoformat(),
                                 "toolName": evt.data.tool_name,
                             }
-                            sm.append_capped(tool_entry)
+                            sm.conversation.append(tool_entry)
                     elif evt.event_type == EventType.STOP and evt.data and evt.data.transcript_path:
                         settings = get_settings()
                         translated_path = settings.translate_path(evt.data.transcript_path)
@@ -736,7 +695,7 @@ class EventProcessor:
                                 "text": response,
                                 "timestamp": evt.timestamp.isoformat(),
                             }
-                            sm.append_capped(assistant_entry)
+                            sm.conversation.append(assistant_entry)
                     elif (
                         evt.event_type == EventType.SUBAGENT_INFO
                         and evt.data
@@ -772,19 +731,7 @@ class EventProcessor:
             sm.todos = await load_tasks(session_id)
             logger.debug(f"Restored {len(sm.todos)} tasks for session {session_id}")
 
-            return sm
-
-    async def _restore_session(self, session_id: str) -> None:
-        """Reconstruct and insert a session's StateMachine, if it has events.
-
-        Builds the machine (async DB I/O) without holding the lock, then inserts
-        it under ``_sessions_lock`` so the registry stays consistent with
-        readers such as ``build_overview``.
-        """
-        sm = await self._build_restored_state_machine(session_id)
-        if sm is not None:
-            async with self._sessions_lock:
-                self.sessions[session_id] = sm
+            self.sessions[session_id] = sm
 
     async def _persist_event(
         self,

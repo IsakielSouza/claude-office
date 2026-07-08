@@ -1,9 +1,8 @@
-import re
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from app.models.common import BubbleContent, SpeechContent
 
@@ -96,12 +95,5 @@ class Event(BaseModel):
 
     event_type: EventType
     session_id: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime = Field(default_factory=datetime.now)
     data: EventData
-
-    @field_validator("session_id")
-    @classmethod
-    def validate_session_id(cls, v: str) -> str:
-        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", v):
-            raise ValueError("session_id must be alphanumeric/dash/underscore, max 128 chars")
-        return v
