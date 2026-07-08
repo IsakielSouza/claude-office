@@ -27,6 +27,7 @@ import {
   approveBacklog,
   reactivateParked,
   dispatchIssueNow,
+  patchAgent,
   type CoordDashboard,
   type CoordTask,
   type CoordAgent,
@@ -182,6 +183,7 @@ export default function DashboardPage(): React.ReactNode {
   const [showParkedModal, setShowParkedModal] = useState(false);
   const [showOrphans, setShowOrphans] = useState(false);
   const [showSemAgente, setShowSemAgente] = useState(false);
+  const [showActiveAgents, setShowActiveAgents] = useState(false);
   // nowMs em estado (lazy init, não Date.now() em render — regra react-hooks/
   // purity); o intervalo faz o "tempo ocioso" do Sem-agente avançar sozinho.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -338,11 +340,12 @@ export default function DashboardPage(): React.ReactNode {
     return { ...c, errors, pending };
   }, [filtered, statusByRef]);
 
-  const agentsActive = useMemo(
-    () =>
-      data ? data.agents.filter((a) => a.enabled && !a.archived_at).length : 0,
+  const activeAgentsList = useMemo(
+    () => (data ? data.agents.filter((a) => a.enabled && !a.archived_at) : []),
     [data],
   );
+
+  const agentsActive = activeAgentsList.length;
 
   const closedToday = useMemo(() => {
     if (!data) return 0;
@@ -605,6 +608,7 @@ export default function DashboardPage(): React.ReactNode {
               value={agentsActive}
               accent="#a855f7"
               glow
+              onClick={() => setShowActiveAgents(true)}
             />
             <StatCard
               label="Em progresso"
@@ -1020,6 +1024,14 @@ export default function DashboardPage(): React.ReactNode {
           tasks={parkedTasks}
           onChanged={refetch}
           onClose={() => setShowParkedModal(false)}
+        />
+      )}
+
+      {showActiveAgents && (
+        <ActiveAgentsModal
+          agents={activeAgentsList}
+          onChanged={() => void refetch()}
+          onClose={() => setShowActiveAgents(false)}
         />
       )}
 
@@ -1954,6 +1966,96 @@ function PrModal({
           <p className="text-[#6b6485] text-[11px] mt-4 text-right">
             cache ~45s
           </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ActiveAgentsModal({
+  agents,
+  onChanged,
+  onClose,
+}: {
+  agents: CoordAgent[];
+  onChanged: () => void;
+  onClose: () => void;
+}): React.ReactNode {
+  const [disabling, setDisabling] = useState<string | null>(null);
+
+  const disable = async (nome: string): Promise<void> => {
+    setDisabling(nome);
+    try {
+      await patchAgent(nome, { enabled: false });
+      onChanged();
+    } finally {
+      setDisabling(null);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-2xl border border-[rgba(168,85,247,0.4)] bg-[rgba(20,14,38,0.97)] p-6 shadow-[0_0_40px_rgba(168,85,247,0.25)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-[#e8e4f3]">
+            🤖 Agentes ativos{" "}
+            <span className="text-[#a855f7]">{agents.length}</span>
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-[#9a93b3] hover:text-white text-xl leading-none"
+            aria-label="Fechar"
+          >
+            ×
+          </button>
+        </div>
+
+        {agents.length === 0 ? (
+          <p className="text-[#9a93b3] text-sm py-6 text-center">
+            Nenhum agente ativo.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {agents.map((a) => (
+              <li
+                key={a.nome}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-[rgba(168,85,247,0.07)] border border-[rgba(168,85,247,0.2)]"
+              >
+                <div
+                  className="w-8 h-8 rounded-lg grid place-items-center text-xs font-bold text-white shrink-0"
+                  style={{ background: colorFor(a.nome) }}
+                >
+                  {initials(a.nome)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-[#e8e4f3] truncate">
+                    {a.nome}
+                  </div>
+                  <div className="text-[11px] text-[#9a93b3] truncate">
+                    {a.role}
+                    {a.projetos.length > 0 &&
+                      ` · ${a.projetos.map((p) => p.replace(/^hmtrack-/, "")).join(", ")}`}
+                  </div>
+                </div>
+                <AgentStatePill enabled={a.enabled} busy={false} />
+                <button
+                  type="button"
+                  onClick={() => void disable(a.nome)}
+                  disabled={disabling === a.nome}
+                  title={`Desativar ${a.nome}`}
+                  className="shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-bold text-[#ec4899] border border-[rgba(236,72,153,0.35)] bg-[rgba(236,72,153,0.08)] hover:bg-[rgba(236,72,153,0.18)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {disabling === a.nome ? "…" : "Desativar"}
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

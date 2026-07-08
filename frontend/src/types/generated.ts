@@ -298,7 +298,7 @@ export type LastUpdated = string;
  * Path to the repository
  */
 export type RepoPath = string;
-export type Sessionid1 = string;
+export type Sessionid2 = string;
 export type Bucket = "needs_you" | "working" | "done";
 export type Currenttask2 = string | null;
 export type Tododone = number;
@@ -766,7 +766,7 @@ export interface GitStatus {
  * via the `definition` "OverviewEntry".
  */
 export interface OverviewEntry {
-  sessionId: Sessionid1;
+  sessionId: Sessionid2;
   bucket: Bucket;
   state: BossState;
   currentTask?: Currenttask2;

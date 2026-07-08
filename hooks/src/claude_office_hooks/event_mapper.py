@@ -370,19 +370,17 @@ def map_event(
         "transcript_path": transcript_path,
     }
 
-<<<<<<< HEAD
     # tool_use_id is only present on tool-related hooks (pre/post tool use and
     # permission requests). Pass it through whenever raw_data carries one so the
     # backend Event.tool_use_id field stays populated regardless of which
     # handler runs below.
     if "tool_use_id" in raw_data:
         data["tool_use_id"] = raw_data["tool_use_id"]
-=======
+
     if team_name:
         data["team_name"] = team_name
     if teammate_name:
         data["teammate_name"] = teammate_name
->>>>>>> feat/894-servidores-polish
 
     task_list_id = os.environ.get("CLAUDE_CODE_TASK_LIST_ID")
     if task_list_id:

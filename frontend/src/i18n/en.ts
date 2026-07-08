@@ -6,6 +6,7 @@ const en = {
   // Header Controls
   "header.simulate": "SIMULATE",
   "header.reset": "RESET",
+  "header.clearDb": "CLEAR DB",
   "header.tasks": "TASKS",
   "header.debugOn": "DEBUG ON",
   "header.debugOff": "DEBUG OFF",

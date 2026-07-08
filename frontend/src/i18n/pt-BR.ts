@@ -8,6 +8,7 @@ const ptBR: Record<TranslationKey, string> = {
   // Header Controls
   "header.simulate": "SIMULAR",
   "header.reset": "RESETAR",
+  "header.clearDb": "LIMPAR DB",
   "header.tasks": "TASKS",
   "header.debugOn": "DEBUG LIGADO",
   "header.debugOff": "DEBUG DESLIGADO",

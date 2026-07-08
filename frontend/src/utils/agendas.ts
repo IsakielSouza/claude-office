@@ -14,7 +14,11 @@ export const CRON_ROLES = [
  *  Agendas e não dava pra ligá-los. */
 export function isCronCapableRole(role: string): boolean {
   return (
-    (CRON_ROLES as readonly string[]).includes(role) || role.startsWith("dev-")
+    (CRON_ROLES as readonly string[]).includes(role) ||
+    role.startsWith("dev-") ||
+    role === "dba" ||
+    role === "fullstack" ||
+    role === "mobile"
   );
 }
 

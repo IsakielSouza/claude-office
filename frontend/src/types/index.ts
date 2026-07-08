@@ -53,6 +53,16 @@ export type {
 export type { Commit, Commit as GitCommit } from "./generated";
 
 // ============================================================================
+// COMMAND CENTER OVERVIEW TYPES — re-exported from ./generated
+// ============================================================================
+
+export type {
+  OverviewEntry,
+  OverviewState,
+  Bucket as OverviewBucket,
+} from "./generated";
+
+// ============================================================================
 // BUILDING VIEW TYPES — compact live feed (re-exported from ./generated)
 // ============================================================================
 

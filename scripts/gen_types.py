@@ -64,17 +64,14 @@ MODELS = [
     ChangedFile,
     Commit,
     GitStatus,
-<<<<<<< HEAD
     OverviewEntry,
     OverviewState,
-=======
     AgentLive,
     SessionLive,
     FloorLive,
     LobbyLive,
     BuildingTotals,
     BuildingState,
->>>>>>> feat/894-servidores-polish
 ]
 
 # Generate combined JSON schema with camelCase field names (by_alias=True)

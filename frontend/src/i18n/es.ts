@@ -8,6 +8,7 @@ const es: Record<TranslationKey, string> = {
   // Header Controls
   "header.simulate": "SIMULAR",
   "header.reset": "REINICIAR",
+  "header.clearDb": "LIMPIAR DB",
   "header.tasks": "TASKS",
   "header.debugOn": "DEPURAR ON",
   "header.debugOff": "DEPURAR OFF",
